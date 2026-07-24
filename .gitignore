@@ -1,0 +1,25 @@
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+**/venv/
+
+# Environment secrets
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# Local backups
+.backups/
+frontend/src.backup.*
+
+# macOS
+.DS_Store
