@@ -5496,3 +5496,383 @@ body,
   }
 }
 
+/* PROFESSIONAL MOBILE HOME V3 */
+
+@media (max-width: 560px) {
+  .main-content {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  @supports (height: 100dvh) {
+    .main-content {
+      height: 100dvh;
+    }
+  }
+
+  /*
+   * Mobile landing screen
+   */
+
+  .home-page:not(.conversation-mode) {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding:
+      68px 14px
+      calc(
+        10px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      );
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .home-page:not(.conversation-mode)
+  .home-hero {
+    display: flex;
+    width: min(100%, 430px);
+    margin: auto;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-logo {
+    width: 52px;
+    height: 52px;
+    margin:
+      0 auto
+      14px;
+    border-radius: 17px;
+    box-shadow:
+      0 10px 28px
+      rgba(32, 91, 75, 0.07),
+      inset 0 1px 0
+      rgba(255, 255, 255, 0.94);
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-logo svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .home-hero h1 {
+    max-width: 330px;
+    margin: 0 auto;
+    font-size:
+      clamp(
+        30px,
+        8.5vw,
+        35px
+      );
+    font-weight: 540;
+    letter-spacing: -0.04em;
+    line-height: 1.06;
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-subtitle {
+    max-width: 342px;
+    margin:
+      12px auto
+      18px;
+    padding: 0 3px;
+    color: #757b78;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .home-page:not(.conversation-mode)
+  .interaction-area {
+    width: 100%;
+  }
+
+  /*
+   * Professional mobile landing composer
+   */
+
+  .home-page:not(.conversation-mode)
+  .prompt-box {
+    width: 100%;
+    padding:
+      12px 12px
+      10px;
+    border:
+      1px solid
+      rgba(20, 27, 23, 0.09);
+    border-radius: 20px;
+    background:
+      rgba(255, 255, 255, 0.96);
+    box-shadow:
+      0 15px 45px
+      rgba(22, 31, 27, 0.075),
+      0 2px 8px
+      rgba(22, 31, 27, 0.025),
+      inset 0 1px 0
+      rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter:
+      blur(20px);
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-box:focus-within {
+    border-color:
+      rgba(32, 145, 121, 0.22);
+    box-shadow:
+      0 17px 50px
+      rgba(22, 31, 27, 0.085),
+      0 0 0 3px
+      rgba(32, 145, 121, 0.035);
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-textarea {
+    width: 100%;
+    min-height: 58px !important;
+    max-height: 120px;
+    padding:
+      2px 2px
+      9px;
+    overflow-y: auto;
+    resize: none;
+    color: #242926;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-textarea::placeholder {
+    color: #929794;
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-toolbar {
+    min-height: 38px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-left-actions {
+    gap: 8px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .upload-control,
+  .home-page:not(.conversation-mode)
+  .send-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .sherry-control {
+    height: 38px;
+    gap: 7px;
+    padding:
+      0 11px;
+    font-size: 11.5px;
+  }
+
+  /*
+   * Mobile quick-action rail
+   */
+
+  .home-page:not(.conversation-mode)
+  .quick-actions {
+    display: flex;
+    width:
+      calc(
+        100% + 28px
+      );
+    margin:
+      14px -14px
+      0;
+    padding:
+      0 14px
+      5px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type:
+      x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling:
+      touch;
+  }
+
+  .home-page:not(.conversation-mode)
+  .quick-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-page:not(.conversation-mode)
+  .quick-actions button {
+    min-height: 36px;
+    flex:
+      0 0 auto;
+    gap: 7px;
+    padding:
+      0 12px;
+    scroll-snap-align: start;
+    border-color:
+      rgba(20, 27, 23, 0.075);
+    background:
+      rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 5px 17px
+      rgba(22, 30, 26, 0.025);
+    font-size: 11px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .home-disclaimer {
+    max-width: 330px;
+    margin:
+      13px auto
+      0;
+    padding: 0 8px;
+    color: #9a9f9c;
+    font-size: 8.5px;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  /*
+   * Conversation view remains full-height.
+   */
+
+  .home-page.conversation-mode {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    min-height: 0;
+    padding:
+      0 10px;
+    overflow: hidden;
+  }
+
+  .conversation-layout {
+    height: 100%;
+    min-height: 0;
+    padding-top: 66px;
+  }
+
+  .chat-transcript {
+    min-height: 0;
+    flex:
+      1 1 0;
+    padding:
+      9px 1px
+      16px;
+    overflow-y: auto;
+  }
+
+  .conversation-composer {
+    flex:
+      0 0 auto;
+    margin-top: auto;
+    padding:
+      8px 0
+      calc(
+        7px +
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      );
+  }
+}
+
+/*
+ * Short phone viewport:
+ * 400 × 615 and similar screens.
+ */
+
+@media (
+  max-width: 560px
+) and (
+  max-height: 700px
+) {
+  .home-page:not(.conversation-mode) {
+    padding-top: 62px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-logo {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+    border-radius: 14px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-logo svg {
+    width: 27px;
+    height: 27px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .home-hero h1 {
+    max-width: 310px;
+    font-size: 30px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .hero-subtitle {
+    margin:
+      9px auto
+      13px;
+    font-size: 11.75px;
+    line-height: 1.5;
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-box {
+    padding:
+      10px 11px
+      9px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .prompt-textarea {
+    min-height: 48px !important;
+    max-height: 96px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .quick-actions {
+    margin-top: 11px;
+  }
+
+  .home-page:not(.conversation-mode)
+  .home-disclaimer {
+    margin-top: 9px;
+  }
+}
+
+@media (max-width: 370px) {
+  .home-page:not(.conversation-mode)
+  .sherry-control {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .home-page:not(.conversation-mode)
+  .sherry-control span {
+    display: none;
+  }
+}
+
