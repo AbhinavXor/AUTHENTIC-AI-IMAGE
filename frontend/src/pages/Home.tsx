@@ -1848,16 +1848,14 @@ export function Home({
         </div>
 
         <h1>
-          What can I verify
-          for you?
+          What would you like
+          to verify?
         </h1>
 
         <p className="hero-subtitle">
-          Ask a question or upload
-          an image. Serenya can
-          understand visible objects,
-          screenshots, diagrams,
-          charts and text.
+          Ask Serenya a question or
+          upload an image or document
+          for careful analysis.
         </p>
 
         <div className="interaction-area">

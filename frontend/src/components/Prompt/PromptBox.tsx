@@ -199,7 +199,7 @@ export function PromptBox({
           onPromptChange(event.target.value)
         }
         onKeyDown={handleKeyDown}
-        placeholder="Ask Authentic AI to verify an image or document..."
+        placeholder="Ask Serenya a question or upload a file..."
         ref={textareaRef}
         rows={2}
         value={prompt}

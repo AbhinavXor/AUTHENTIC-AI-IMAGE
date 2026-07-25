@@ -18,6 +18,7 @@ import {
   type AppPage,
 } from './types/navigation'
 import './styles/global.css'
+import './styles/mobile.css'
 
 const conversationStorageKey =
   'authentic-ai-image.conversations.v2'
