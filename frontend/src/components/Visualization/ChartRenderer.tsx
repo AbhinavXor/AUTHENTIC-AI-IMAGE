@@ -212,8 +212,75 @@ function buildOption(
         '#8056c9',
       ]
 
+  const normalizedSeries = Array.isArray(
+    source.series,
+  )
+    ? source.series.map((item) => {
+        if (
+          !item ||
+          typeof item !== 'object' ||
+          Array.isArray(item)
+        ) {
+          return item
+        }
+
+        const series =
+          item as Record<string, unknown>
+
+        const rawLabel =
+          series.label &&
+          typeof series.label === 'object' &&
+          !Array.isArray(series.label)
+            ? series.label as Record<string, unknown>
+            : {}
+
+        const isSankey =
+          series.type === 'sankey'
+
+        return {
+          ...series,
+          ...(isSankey
+            ? {
+                nodeAlign: 'justify',
+                nodeGap: 16,
+                nodeWidth: 18,
+                layoutIterations: 48,
+                draggable: false,
+                left: '3%',
+                right: '13%',
+                top: '4%',
+                bottom: '4%',
+              }
+            : {}),
+          label: {
+            ...rawLabel,
+            show:
+              rawLabel.show !== false,
+            color: isDark
+              ? '#f2f6f3'
+              : '#18201c',
+            fontFamily:
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontSize: isSankey
+              ? 12
+              : 12,
+            fontWeight: 500,
+            lineHeight: 17,
+            textBorderColor:
+              'transparent',
+            textBorderWidth: 0,
+            textShadowBlur: 0,
+            textShadowColor:
+              'transparent',
+          },
+        }
+      })
+    : source.series
+
   return {
     ...source,
+    series:
+      normalizedSeries as EChartsOption['series'],
     color: palette,
     backgroundColor: 'transparent',
     animationDuration: 420,
@@ -273,7 +340,7 @@ export default function ChartRenderer({
     const dataUrl =
       instance.getDataURL({
         type: 'png',
-        pixelRatio: 2,
+        pixelRatio: 3,
         backgroundColor:
           isDark
             ? '#0d100f'
