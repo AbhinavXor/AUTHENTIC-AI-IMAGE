@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from ai.visualization_contract import (
+    VISUALIZATION_CONTRACT,
+    wants_visualization,
+)
+
 
 ResponseIntent = Literal[
     "direct",
@@ -376,9 +381,22 @@ def create_response_plan(
         )
         max_tokens = 1_200
 
+    contract = _CONTRACTS[intent]
+
+    if wants_visualization(message):
+        reasoning_effort = "high"
+        max_tokens = max(
+            max_tokens,
+            2_800,
+        )
+        contract = (
+            f"{contract}\n\n"
+            f"{VISUALIZATION_CONTRACT}"
+        )
+
     return ResponsePlan(
         intent=intent,
         reasoning_effort=reasoning_effort,
         max_completion_tokens=max_tokens,
-        contract=_CONTRACTS[intent],
+        contract=contract,
     )

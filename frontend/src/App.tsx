@@ -19,6 +19,7 @@ import {
 } from './types/navigation'
 import './styles/global.css'
 import './styles/mobile.css'
+import './styles/visualization.css'
 
 const conversationStorageKey =
   'authentic-ai-image.conversations.v2'

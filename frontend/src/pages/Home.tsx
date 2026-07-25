@@ -1259,7 +1259,7 @@ export function Home({
         | ConversationAttachment
         | undefined
 
-      if (selectedFileSnapshot) {
+      if (fileSnapshot) {
         if (
           imageTypes.has(
             fileSnapshot.type,

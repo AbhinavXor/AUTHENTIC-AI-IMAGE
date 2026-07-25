@@ -9,6 +9,8 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -16,6 +18,9 @@ import {
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { BrandMark } from '../Brand/BrandMark'
+import {
+  parseChartResponse,
+} from '../../lib/visualization'
 import type {
   ConversationMessage,
 } from '../../types/chat'
@@ -116,6 +121,13 @@ const pdfContextPattern =
 
 const structuredContextPattern =
   /(?:\r?\n){0,2}<!--AUTHENTIC_STRUCTURED_DOCUMENT_CONTEXT:([^>]*)-->\s*$/
+
+const ChartRenderer = lazy(
+  () =>
+    import(
+      '../Visualization/ChartRenderer'
+    ),
+)
 
 const codeExtensions =
   new Set([
@@ -665,8 +677,44 @@ function AssistantMessage({
     message.content,
   )
 
+  /*
+   * Do not expose incomplete chart JSON while
+   * the response is still streaming.
+   */
+  const streamingMarkdown =
+    displayContent
+      .replace(
+        /```authentic-chart[\s\S]*$/i,
+        '',
+      )
+      .trimEnd()
+
+  const chartResponse =
+    message.isStreaming
+      ? {
+          markdown:
+            streamingMarkdown,
+          charts: [],
+          rejectedCount: 0,
+        }
+      : parseChartResponse(
+          displayContent,
+        )
+
   const hasContent =
-    displayContent.length > 0
+    chartResponse.markdown.length >
+      0 ||
+    chartResponse.charts.length >
+      0
+
+  const responseActionContent =
+    chartResponse.markdown ||
+    chartResponse.charts
+      .map(
+        (chart) =>
+          chart.title,
+      )
+      .join('\n')
 
   return (
     <article className="chat-message assistant-message">
@@ -698,28 +746,70 @@ function AssistantMessage({
             <span />
           </div>
         ) : (
-          <div className="markdown-answer">
-            <ReactMarkdown
-              components={{
-                a: ({
-                  children,
-                  ...properties
-                }) => (
-                  <a
-                    {...properties}
-                    rel="noreferrer noopener"
-                    target="_blank"
-                  >
-                    {children}
-                  </a>
-                ),
-              }}
-              remarkPlugins={[
-                remarkGfm,
-              ]}
-            >
-              {displayContent}
-            </ReactMarkdown>
+          <div className="assistant-content-stack">
+            {chartResponse.markdown && (
+              <div className="markdown-answer">
+                <ReactMarkdown
+                  components={{
+                    a: ({
+                      children,
+                      ...properties
+                    }) => (
+                      <a
+                        {...properties}
+                        rel="noreferrer noopener"
+                        target="_blank"
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                  remarkPlugins={[
+                    remarkGfm,
+                  ]}
+                >
+                  {chartResponse.markdown}
+                </ReactMarkdown>
+              </div>
+            )}
+
+            {chartResponse.charts.length >
+              0 && (
+              <div className="assistant-visualizations">
+                {chartResponse.charts.map(
+                  (
+                    chart,
+                    index,
+                  ) => (
+                    <Suspense
+                      fallback={
+                        <div className="authentic-chart-loading">
+                          Preparing visualization…
+                        </div>
+                      }
+                      key={`${message.id}:chart:${index}`}
+                    >
+                      <ChartRenderer
+                        spec={chart}
+                      />
+                    </Suspense>
+                  ),
+                )}
+              </div>
+            )}
+
+            {!message.isStreaming &&
+              chartResponse.rejectedCount >
+                0 && (
+                <div
+                  className="authentic-chart-error"
+                  role="alert"
+                >
+                  A visualization was not
+                  displayed because its chart
+                  specification was invalid.
+                </div>
+              )}
 
             {message.isStreaming && (
               <span
@@ -731,9 +821,11 @@ function AssistantMessage({
         )}
 
         {!message.isStreaming &&
-          displayContent && (
+          hasContent && (
             <ResponseActions
-              content={displayContent}
+              content={
+                responseActionContent
+              }
               sourceContext={
                 sourceContext
               }
@@ -743,6 +835,7 @@ function AssistantMessage({
     </article>
   )
 }
+
 
 function UserAttachment({
   message,
