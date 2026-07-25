@@ -18,6 +18,8 @@ import {
   type AppPage,
 } from './types/navigation'
 import './styles/global.css'
+import 'katex/dist/katex.min.css'
+import './styles/math.css'
 import './styles/mobile.css'
 import './styles/visualization.css'
 

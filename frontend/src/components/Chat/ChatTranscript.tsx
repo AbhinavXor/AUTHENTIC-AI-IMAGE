@@ -16,8 +16,13 @@ import {
   useState,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import { BrandMark } from '../Brand/BrandMark'
+import {
+  normalizeMathMarkdown,
+} from '../../lib/mathMarkdown'
 import {
   parseChartResponse,
 } from '../../lib/visualization'
@@ -701,14 +706,19 @@ function AssistantMessage({
           displayContent,
         )
 
+  const renderedMarkdown =
+    normalizeMathMarkdown(
+      chartResponse.markdown,
+    )
+
   const hasContent =
-    chartResponse.markdown.length >
+    renderedMarkdown.length >
       0 ||
     chartResponse.charts.length >
       0
 
   const responseActionContent =
-    chartResponse.markdown ||
+    renderedMarkdown ||
     chartResponse.charts
       .map(
         (chart) =>
@@ -747,7 +757,7 @@ function AssistantMessage({
           </div>
         ) : (
           <div className="assistant-content-stack">
-            {chartResponse.markdown && (
+            {renderedMarkdown && (
               <div className="markdown-answer">
                 <ReactMarkdown
                   components={{
@@ -764,11 +774,23 @@ function AssistantMessage({
                       </a>
                     ),
                   }}
+                  rehypePlugins={[
+                    [
+                      rehypeKatex,
+                      {
+                        strict: false,
+                        trust: false,
+                        output:
+                          'htmlAndMathml',
+                      },
+                    ],
+                  ]}
                   remarkPlugins={[
                     remarkGfm,
+                    remarkMath,
                   ]}
                 >
-                  {chartResponse.markdown}
+                  {renderedMarkdown}
                 </ReactMarkdown>
               </div>
             )}

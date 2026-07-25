@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from ai.math_contract import (
+    MATH_RESPONSE_CONTRACT,
+    wants_math_response,
+)
 from ai.visualization_contract import (
     VISUALIZATION_CONTRACT,
     wants_visualization,
@@ -382,6 +386,19 @@ def create_response_plan(
         max_tokens = 1_200
 
     contract = _CONTRACTS[intent]
+
+    if wants_math_response(message):
+        reasoning_effort = "high"
+
+        max_tokens = max(
+            max_tokens,
+            3_600,
+        )
+
+        contract = (
+            f"{contract}\n\n"
+            f"{MATH_RESPONSE_CONTRACT}"
+        )
 
     if wants_visualization(message):
         reasoning_effort = "high"
