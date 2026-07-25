@@ -9,6 +9,9 @@ from ai.model_registry import (
 )
 from ai.model_types import StreamDelta
 from ai.provider_adapter import ProviderError
+from ai.response_language import (
+    response_language_contract,
+)
 from ai.response_planner import create_response_plan
 from ai.task_classifier import TaskCategory
 from core.cloudflare_settings import cloudflare_settings
@@ -180,6 +183,8 @@ class CloudflareProviderAdapter:
 
         system = f"""
 {SYSTEM_PROMPT}
+
+{response_language_contract(message)}
 
 Response contract:
 {plan.contract}

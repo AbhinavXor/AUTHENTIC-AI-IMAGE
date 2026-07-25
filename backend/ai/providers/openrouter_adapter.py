@@ -7,6 +7,9 @@ import httpx
 from ai.model_registry import get_provider_model_order
 from ai.model_types import StreamDelta
 from ai.provider_adapter import ProviderError
+from ai.response_language import (
+    response_language_contract,
+)
 from ai.response_planner import create_response_plan
 from ai.task_classifier import TaskCategory
 from core.openrouter_settings import openrouter_settings
@@ -122,6 +125,7 @@ class OpenRouterProviderAdapter:
                 "role": "system",
                 "content": (
                     f"{SYSTEM_PROMPT}\n\n"
+                    f"{response_language_contract(message)}\n\n"
                     f"Response contract:\n{plan.contract}"
                 ),
             }

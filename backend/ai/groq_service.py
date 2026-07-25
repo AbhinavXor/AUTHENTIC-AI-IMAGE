@@ -6,6 +6,9 @@ from typing import Any, Literal
 import groq
 from groq import AsyncGroq
 
+from ai.response_language import (
+    response_language_contract,
+)
 from ai.response_planner import (
     ResponsePlan,
     create_response_plan,
@@ -138,6 +141,8 @@ class GroqChatService:
         ]
 
         dynamic_contract = f"""
+{response_language_contract(message)}
+
 RESPONSE PLAN
 
 Intent: {plan.intent}
