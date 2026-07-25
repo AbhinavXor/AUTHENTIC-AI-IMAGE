@@ -5,6 +5,10 @@ from ai.math_contract import (
     MATH_RESPONSE_CONTRACT,
     wants_math_response,
 )
+from ai.visualization_need import (
+    AUTOMATIC_VISUALIZATION_OVERRIDE,
+    assess_visualization_need,
+)
 from ai.visualization_contract import (
     VISUALIZATION_CONTRACT,
     wants_visualization,
@@ -400,15 +404,52 @@ def create_response_plan(
             f"{MATH_RESPONSE_CONTRACT}"
         )
 
-    if wants_visualization(message):
+    explicit_visualization = (
+        wants_visualization(message)
+    )
+
+    automatic_visualization = (
+        assess_visualization_need(
+            message
+        )
+    )
+
+    if explicit_visualization:
         reasoning_effort = "high"
+
         max_tokens = max(
             max_tokens,
             6_500,
         )
+
         contract = (
             f"{contract}\n\n"
             f"{VISUALIZATION_CONTRACT}"
+        )
+
+    elif automatic_visualization.should_render:
+        reasoning_effort = "high"
+
+        max_tokens = max(
+            max_tokens,
+            5_000,
+        )
+
+        recommended_types = ", ".join(
+            automatic_visualization
+            .suggested_types
+        )
+
+        contract = (
+            f"{contract}\n\n"
+            f"{VISUALIZATION_CONTRACT}"
+            f"\n\n"
+            f"{AUTOMATIC_VISUALIZATION_OVERRIDE}"
+            f"\n\n"
+            "Recommended visualization family: "
+            f"{recommended_types}.\n"
+            "Visualization rationale: "
+            f"{automatic_visualization.reason}"
         )
 
     return ResponsePlan(
