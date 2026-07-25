@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { Sidebar } from './components/Sidebar/Sidebar'
@@ -111,13 +112,21 @@ function loadConversations():
 
 function loadSidebarState(): boolean {
   try {
+    /*
+     * Desktop remembers its sidebar state.
+     * Mobile always starts with the drawer closed.
+     */
+    if (window.innerWidth <= 820) {
+      return false
+    }
+
     return (
       window.localStorage.getItem(
         sidebarStorageKey,
       ) !== 'closed'
     )
   } catch {
-    return true
+    return false
   }
 }
 
@@ -141,6 +150,11 @@ function App() {
   const [homeVersion, setHomeVersion] =
     useState(0)
 
+  const touchStartRef = useRef<{
+    x: number
+    y: number
+  } | null>(null)
+
   const selectedConversation = useMemo(
     () =>
       conversations.find(
@@ -162,11 +176,37 @@ function App() {
   }, [conversations])
 
   useEffect(() => {
-    window.localStorage.setItem(
-      sidebarStorageKey,
-      isSidebarOpen ? 'open' : 'closed',
-    )
+    /*
+     * Mobile drawer state is intentionally temporary.
+     * Desktop state remains persistent.
+     */
+    if (window.innerWidth > 820) {
+      window.localStorage.setItem(
+        sidebarStorageKey,
+        isSidebarOpen ? 'open' : 'closed',
+      )
+    }
   }, [isSidebarOpen])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 820) {
+        setIsSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener(
+      'resize',
+      handleResize,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'resize',
+        handleResize,
+      )
+    }
+  }, [])
 
   const handleNavigate = (
     page: AppPage,
@@ -277,6 +317,90 @@ function App() {
     )
   }
 
+  const handleTouchStart = (
+    event: React.TouchEvent<HTMLDivElement>,
+  ) => {
+    if (window.innerWidth > 820) {
+      return
+    }
+
+    const touch =
+      event.changedTouches[0]
+
+    if (!touch) {
+      return
+    }
+
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    }
+  }
+
+  const handleTouchEnd = (
+    event: React.TouchEvent<HTMLDivElement>,
+  ) => {
+    if (
+      window.innerWidth > 820 ||
+      !touchStartRef.current
+    ) {
+      touchStartRef.current = null
+      return
+    }
+
+    const touch =
+      event.changedTouches[0]
+
+    if (!touch) {
+      touchStartRef.current = null
+      return
+    }
+
+    const start =
+      touchStartRef.current
+
+    const horizontalDistance =
+      touch.clientX - start.x
+
+    const verticalDistance =
+      touch.clientY - start.y
+
+    touchStartRef.current = null
+
+    const isHorizontalGesture =
+      Math.abs(horizontalDistance) >= 68 &&
+      Math.abs(horizontalDistance) >
+        Math.abs(verticalDistance) * 1.2
+
+    if (!isHorizontalGesture) {
+      return
+    }
+
+    /*
+     * Swipe from left edge toward right:
+     * open the mobile navigation drawer.
+     */
+    if (
+      horizontalDistance > 0 &&
+      start.x <= 42 &&
+      !isSidebarOpen
+    ) {
+      setIsSidebarOpen(true)
+      return
+    }
+
+    /*
+     * Swipe toward left while drawer is open:
+     * close the mobile navigation drawer.
+     */
+    if (
+      horizontalDistance < 0 &&
+      isSidebarOpen
+    ) {
+      setIsSidebarOpen(false)
+    }
+  }
+
   const renderCurrentPage = () => {
     if (activePage === 'home') {
       return (
@@ -329,6 +453,8 @@ function App() {
           ? 'sidebar-open'
           : 'sidebar-collapsed'
       }`}
+      onTouchEnd={handleTouchEnd}
+      onTouchStart={handleTouchStart}
     >
       <Sidebar
         activePage={activePage}
@@ -340,6 +466,9 @@ function App() {
         }
         onNavigate={handleNavigate}
         onNewChat={handleNewChat}
+        onClose={() =>
+          setIsSidebarOpen(false)
+        }
         onRecentSelect={
           handleRecentSelect
         }
@@ -347,6 +476,17 @@ function App() {
           conversations
         }
       />
+
+      {isSidebarOpen && (
+        <button
+          aria-label="Close navigation menu"
+          className="sidebar-backdrop"
+          onClick={() =>
+            setIsSidebarOpen(false)
+          }
+          type="button"
+        />
+      )}
 
       <div className="main-shell">
         <Navbar

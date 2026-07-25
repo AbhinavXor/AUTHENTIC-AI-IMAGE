@@ -7,6 +7,7 @@ import {
   Search,
   Trash2,
   Workflow,
+  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ interface SidebarProps {
   recentActivities: RecentActivity[]
   onNavigate: (page: AppPage) => void
   onNewChat: () => void
+  onClose: () => void
   onRecentSelect: (activity: RecentActivity) => void
   onDeleteRecent: (activityId: string) => void
   onClearRecent: () => void
@@ -110,6 +112,7 @@ export function Sidebar({
   recentActivities,
   onNavigate,
   onNewChat,
+  onClose,
   onRecentSelect,
   onDeleteRecent,
   onClearRecent,
@@ -119,9 +122,27 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <BrandMark className="brand-mark" size={27} />
-        <span>Authentic AI</span>
+      <div className="sidebar-header">
+        <div className="sidebar-brand">
+          <BrandMark
+            className="brand-mark"
+            size={27}
+          />
+
+          <span>Authentic AI</span>
+        </div>
+
+        <button
+          aria-label="Close navigation menu"
+          className="sidebar-close-button"
+          onClick={onClose}
+          type="button"
+        >
+          <X
+            size={20}
+            strokeWidth={1.8}
+          />
+        </button>
       </div>
 
       <button
