@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from 'react'
 import { Sidebar } from './components/Sidebar/Sidebar'
@@ -7,49 +8,102 @@ import { Navbar } from './components/Navbar/Navbar'
 import { Home } from './pages/Home'
 import { Memory } from './pages/Memory'
 import { UnderDevelopment } from './pages/UnderDevelopment'
+import type {
+  ConversationMessage,
+  ConversationRecord,
+} from './types/chat'
 import {
   pageTitles,
   type AppPage,
-  type RecentActivity,
 } from './types/navigation'
 import './styles/global.css'
 
-const recentStorageKey =
-  'authentic-ai-image.recent-activities.v1'
+const conversationStorageKey =
+  'authentic-ai-image.conversations.v2'
 
 const sidebarStorageKey =
   'authentic-ai-image.sidebar-open.v1'
 
-const maximumStoredActivities = 100
+const maximumStoredConversations = 100
 
-function loadRecentActivities(): RecentActivity[] {
+function isConversationMessage(
+  value: unknown,
+): value is ConversationMessage {
+  if (
+    typeof value !== 'object' ||
+    value === null
+  ) {
+    return false
+  }
+
+  const message =
+    value as Record<string, unknown>
+
+  return (
+    typeof message.id === 'string' &&
+    (
+      message.role === 'user' ||
+      message.role === 'assistant'
+    ) &&
+    typeof message.content === 'string'
+  )
+}
+
+function isConversationRecord(
+  value: unknown,
+): value is ConversationRecord {
+  if (
+    typeof value !== 'object' ||
+    value === null
+  ) {
+    return false
+  }
+
+  const conversation =
+    value as Record<string, unknown>
+
+  return (
+    typeof conversation.id === 'string' &&
+    typeof conversation.title === 'string' &&
+    typeof conversation.createdAt === 'string' &&
+    typeof conversation.updatedAt === 'string' &&
+    Array.isArray(conversation.messages) &&
+    conversation.messages.every(
+      isConversationMessage,
+    )
+  )
+}
+
+function loadConversations():
+  ConversationRecord[] {
   try {
-    const storedValue =
-      window.localStorage.getItem(recentStorageKey)
-
-    if (!storedValue) {
-      return []
-    }
-
-    const parsedValue: unknown = JSON.parse(storedValue)
-
-    if (!Array.isArray(parsedValue)) {
-      return []
-    }
-
-    return parsedValue
-      .filter(
-        (item): item is RecentActivity =>
-          typeof item === 'object' &&
-          item !== null &&
-          'id' in item &&
-          'title' in item &&
-          'createdAt' in item &&
-          typeof item.id === 'string' &&
-          typeof item.title === 'string' &&
-          typeof item.createdAt === 'string',
+    const stored =
+      window.localStorage.getItem(
+        conversationStorageKey,
       )
-      .slice(0, maximumStoredActivities)
+
+    if (!stored) {
+      return []
+    }
+
+    const parsed: unknown =
+      JSON.parse(stored)
+
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed
+      .filter(isConversationRecord)
+      .sort(
+        (first, second) =>
+          new Date(second.updatedAt).getTime() -
+          new Date(first.updatedAt).getTime(),
+      )
+      .slice(
+        0,
+        maximumStoredConversations,
+      )
   } catch {
     return []
   }
@@ -58,45 +112,54 @@ function loadRecentActivities(): RecentActivity[] {
 function loadSidebarState(): boolean {
   try {
     return (
-      window.localStorage.getItem(sidebarStorageKey) !==
-      'closed'
+      window.localStorage.getItem(
+        sidebarStorageKey,
+      ) !== 'closed'
     )
   } catch {
     return true
   }
 }
 
-function createActivityId(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return crypto.randomUUID()
-  }
-
-  return `${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`
-}
-
 function App() {
   const [activePage, setActivePage] =
     useState<AppPage>('home')
 
-  const [homeSession, setHomeSession] = useState(0)
-
   const [isSidebarOpen, setIsSidebarOpen] =
     useState(loadSidebarState)
 
-  const [recentActivities, setRecentActivities] =
-    useState<RecentActivity[]>(loadRecentActivities)
+  const [conversations, setConversations] =
+    useState<ConversationRecord[]>(
+      loadConversations,
+    )
+
+  const [
+    selectedConversationId,
+    setSelectedConversationId,
+  ] = useState<string | null>(null)
+
+  const [homeVersion, setHomeVersion] =
+    useState(0)
+
+  const selectedConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) =>
+          conversation.id ===
+          selectedConversationId,
+      ) ?? null,
+    [
+      conversations,
+      selectedConversationId,
+    ],
+  )
 
   useEffect(() => {
     window.localStorage.setItem(
-      recentStorageKey,
-      JSON.stringify(recentActivities),
+      conversationStorageKey,
+      JSON.stringify(conversations),
     )
-  }, [recentActivities])
+  }, [conversations])
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -105,7 +168,9 @@ function App() {
     )
   }, [isSidebarOpen])
 
-  const handleNavigate = (page: AppPage) => {
+  const handleNavigate = (
+    page: AppPage,
+  ) => {
     setActivePage(page)
 
     if (window.innerWidth <= 820) {
@@ -115,57 +180,120 @@ function App() {
 
   const handleNewChat = () => {
     setActivePage('home')
-    setHomeSession((current) => current + 1)
+    setSelectedConversationId(null)
+    setHomeVersion(
+      (current) => current + 1,
+    )
 
     if (window.innerWidth <= 820) {
       setIsSidebarOpen(false)
     }
   }
 
-  const handleActivityCreated = (title: string) => {
-    const newActivity: RecentActivity = {
-      id: createActivityId(),
-      title,
-      createdAt: new Date().toISOString(),
-    }
-
-    setRecentActivities((currentActivities) =>
+  const handleConversationUpdated = (
+    conversation: ConversationRecord,
+  ) => {
+    setConversations((current) =>
       [
-        newActivity,
-        ...currentActivities.filter(
-          (activity) => activity.title !== title,
+        conversation,
+        ...current.filter(
+          (item) =>
+            item.id !== conversation.id,
         ),
-      ].slice(0, maximumStoredActivities),
+      ]
+        .sort(
+          (first, second) =>
+            new Date(
+              second.updatedAt,
+            ).getTime() -
+            new Date(
+              first.updatedAt,
+            ).getTime(),
+        )
+        .slice(
+          0,
+          maximumStoredConversations,
+        ),
+    )
+
+    setSelectedConversationId(
+      conversation.id,
     )
   }
 
-  const handleDeleteActivity = (
-    activityId: string,
+  const handleRecentSelect = (
+    conversation: ConversationRecord,
   ) => {
-    setRecentActivities((currentActivities) =>
-      currentActivities.filter(
-        (activity) => activity.id !== activityId,
+    setSelectedConversationId(
+      conversation.id,
+    )
+
+    setActivePage('home')
+
+    setHomeVersion(
+      (current) => current + 1,
+    )
+
+    if (window.innerWidth <= 820) {
+      setIsSidebarOpen(false)
+    }
+  }
+
+  const handleDeleteConversation = (
+    conversationId: string,
+  ) => {
+    setConversations((current) =>
+      current.filter(
+        (conversation) =>
+          conversation.id !==
+          conversationId,
       ),
     )
+
+    if (
+      selectedConversationId ===
+      conversationId
+    ) {
+      setSelectedConversationId(null)
+      setHomeVersion(
+        (current) => current + 1,
+      )
+    }
   }
 
   const handleClearHistory = () => {
     const shouldClear = window.confirm(
-      'Delete all saved history? This action cannot be undone.',
+      'Delete all saved conversations? This action cannot be undone.',
     )
 
-    if (shouldClear) {
-      setRecentActivities([])
+    if (!shouldClear) {
+      return
     }
+
+    setConversations([])
+    setSelectedConversationId(null)
+    setHomeVersion(
+      (current) => current + 1,
+    )
   }
 
   const renderCurrentPage = () => {
     if (activePage === 'home') {
       return (
         <Home
-          key={homeSession}
-          onActivityCreated={handleActivityCreated}
-          onOpenDevelopment={handleNavigate}
+          initialConversation={
+            selectedConversation
+          }
+          key={`${homeVersion}:${
+            selectedConversation?.id ??
+            'new'
+          }`}
+          onConversationUpdated={
+            handleConversationUpdated
+          }
+          onOpenDevelopment={
+            handleNavigate
+          }
         />
       )
     }
@@ -173,16 +301,22 @@ function App() {
     if (activePage === 'memory') {
       return (
         <Memory
-          activities={recentActivities}
-          onClearHistory={handleClearHistory}
-          onDeleteActivity={handleDeleteActivity}
+          activities={conversations}
+          onClearHistory={
+            handleClearHistory
+          }
+          onDeleteActivity={
+            handleDeleteConversation
+          }
         />
       )
     }
 
     return (
       <UnderDevelopment
-        onBack={() => handleNavigate('home')}
+        onBack={() =>
+          handleNavigate('home')
+        }
         title={pageTitles[activePage]}
       />
     )
@@ -198,20 +332,32 @@ function App() {
     >
       <Sidebar
         activePage={activePage}
-        onClearRecent={handleClearHistory}
-        onDeleteRecent={handleDeleteActivity}
+        onClearRecent={
+          handleClearHistory
+        }
+        onDeleteRecent={
+          handleDeleteConversation
+        }
         onNavigate={handleNavigate}
         onNewChat={handleNewChat}
-        onRecentSelect={() => handleNavigate('memory')}
-        recentActivities={recentActivities}
+        onRecentSelect={
+          handleRecentSelect
+        }
+        recentActivities={
+          conversations
+        }
       />
 
       <div className="main-shell">
         <Navbar
-          isSidebarOpen={isSidebarOpen}
+          isSidebarOpen={
+            isSidebarOpen
+          }
           onNavigate={handleNavigate}
           onToggleSidebar={() =>
-            setIsSidebarOpen((current) => !current)
+            setIsSidebarOpen(
+              (current) => !current,
+            )
           }
         />
 

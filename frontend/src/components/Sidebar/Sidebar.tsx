@@ -1,5 +1,4 @@
 import {
-  Activity,
   Bookmark,
   Folder,
   House,
@@ -199,8 +198,8 @@ export function Sidebar({
                     {activity.title}
                   </span>
 
-                  <time dateTime={activity.createdAt}>
-                    {formatRecentTime(activity.createdAt)}
+                  <time dateTime={activity.updatedAt}>
+                    {formatRecentTime(activity.updatedAt)}
                   </time>
                 </button>
 
@@ -221,43 +220,6 @@ export function Sidebar({
         )}
       </section>
 
-      <button
-        className="runtime-card runtime-card-button"
-        onClick={() =>
-          onNavigate('opspilot-runtime')
-        }
-        type="button"
-      >
-        <div className="runtime-heading">
-          <div className="runtime-title">
-            <Activity size={18} strokeWidth={1.8} />
-
-            <div>
-              <strong>OpsPilot Runtime</strong>
-              <span>Not configured</span>
-            </div>
-          </div>
-
-          <span className="runtime-status-dot runtime-status-idle" />
-        </div>
-
-        <div className="runtime-metrics">
-          <div>
-            <strong>00</strong>
-            <span>Automations</span>
-          </div>
-
-          <div>
-            <strong>00</strong>
-            <span>Running</span>
-          </div>
-
-          <div>
-            <strong>00</strong>
-            <span>Integrations</span>
-          </div>
-        </div>
-      </button>
     </aside>
   )
 }

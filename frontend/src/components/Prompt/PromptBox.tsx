@@ -1,20 +1,24 @@
+import { UploadMenuButton } from '../Upload/UploadMenuButton'
+import type { ReactNode } from 'react'
 import {
   ArrowUp,
-  FileUp,
-  Sparkles,
+  LoaderCircle,
 } from 'lucide-react'
 import {
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
+  useEffect,
   useRef,
 } from 'react'
 import { SherryMark } from '../Brand/SherryMark'
 
 interface PromptBoxProps {
+  attachment?: ReactNode
   prompt: string
   selectedFile: File | null
   isWorking: boolean
+  variant?: 'landing' | 'conversation'
   onPromptChange: (value: string) => void
   onFileSelected: (file: File) => void
   onSubmit: () => void
@@ -22,17 +26,46 @@ interface PromptBoxProps {
 }
 
 export function PromptBox({
+  attachment,
   prompt,
   selectedFile,
   isWorking,
+  variant = 'landing',
   onPromptChange,
   onFileSelected,
   onSubmit,
   onSherryClick,
 }: PromptBoxProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef =
+    useRef<HTMLInputElement>(null)
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const textareaRef =
+    useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+
+    if (!textarea) {
+      return
+    }
+
+    textarea.style.height = 'auto'
+
+    const maximumHeight =
+      variant === 'conversation'
+        ? 160
+        : 190
+
+    textarea.style.height =
+      `${Math.min(
+        textarea.scrollHeight,
+        maximumHeight,
+      )}px`
+  }, [prompt, variant])
+
+  const handleSubmit = (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault()
     onSubmit()
   }
@@ -42,7 +75,7 @@ export function PromptBox({
   ) => {
     if (
       event.key === 'Enter' &&
-      (event.metaKey || event.ctrlKey)
+      !event.shiftKey
     ) {
       event.preventDefault()
       onSubmit()
@@ -62,10 +95,103 @@ export function PromptBox({
   }
 
   const submitDisabled =
-    isWorking || (!prompt.trim() && !selectedFile)
+    isWorking ||
+    (!prompt.trim() && !selectedFile)
+
+  const fileInput = (
+    <input
+      accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+      className="hidden-file-input"
+      onChange={handleFileChange}
+      ref={fileInputRef}
+      type="file"
+    />
+  )
+
+  if (variant === 'conversation') {
+    return (
+      <form
+        className={`conversation-prompt-box ${attachment ? 'has-attachment' : ''}`}
+        onSubmit={handleSubmit}
+      >
+        {fileInput}
+
+      {attachment && (
+        <div className="composer-attachment-slot">
+          {attachment}
+        </div>
+      )}
+
+        <UploadMenuButton
+          buttonClassName="conversation-tool-button"
+          disabled={isWorking}
+          onFileSelected={onFileSelected}
+          variant="conversation"
+        />
+
+        <textarea
+          aria-label="Message Serenya"
+          className="conversation-prompt-textarea"
+          onChange={(event) =>
+            onPromptChange(event.target.value)
+          }
+          onKeyDown={handleKeyDown}
+          placeholder="Message Serenya..."
+          ref={textareaRef}
+          rows={1}
+          value={prompt}
+        />
+
+        <button
+          aria-label="Talk to Sherry"
+          className="conversation-sherry-button"
+          onClick={onSherryClick}
+          title="Talk to Sherry"
+          type="button"
+        >
+          <SherryMark size={29} />
+        </button>
+
+        <button
+          aria-label={
+            isWorking
+              ? 'Generating response'
+              : 'Send message'
+          }
+          className="conversation-send-button"
+          disabled={submitDisabled}
+          type="submit"
+        >
+          {isWorking ? (
+            <LoaderCircle
+              className="composer-spinner"
+              size={18}
+              strokeWidth={2}
+            />
+          ) : (
+            <ArrowUp
+              size={19}
+              strokeWidth={2}
+            />
+          )}
+        </button>
+      </form>
+    )
+  }
 
   return (
-    <form className="prompt-box" onSubmit={handleSubmit}>
+    <form
+      className={`prompt-box ${attachment ? 'has-attachment' : ''}`}
+      onSubmit={handleSubmit}
+    >
+      {fileInput}
+
+      {attachment && (
+        <div className="composer-attachment-slot">
+          {attachment}
+        </div>
+      )}
+
       <textarea
         aria-label="Prompt"
         className="prompt-textarea"
@@ -74,29 +200,19 @@ export function PromptBox({
         }
         onKeyDown={handleKeyDown}
         placeholder="Ask Authentic AI to verify an image or document..."
-        rows={3}
+        ref={textareaRef}
+        rows={2}
         value={prompt}
       />
 
       <div className="prompt-toolbar">
         <div className="prompt-left-actions">
-          <input
-            accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
-            className="hidden-file-input"
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            type="file"
+          <UploadMenuButton
+            buttonClassName="upload-control"
+            disabled={isWorking}
+            onFileSelected={onFileSelected}
+            variant="home"
           />
-
-          <button
-            aria-label="Upload image or PDF"
-            className="upload-control"
-            onClick={() => fileInputRef.current?.click()}
-            title="Upload PDF, PNG, JPEG or WEBP"
-            type="button"
-          >
-            <FileUp size={19} strokeWidth={1.8} />
-          </button>
 
           <button
             className="sherry-control"
@@ -110,13 +226,6 @@ export function PromptBox({
 
             <span>Talk to Sherry</span>
           </button>
-
-          {selectedFile && (
-            <span className="attached-indicator">
-              <Sparkles size={14} />
-              File attached
-            </span>
-          )}
         </div>
 
         <button
@@ -125,7 +234,17 @@ export function PromptBox({
           disabled={submitDisabled}
           type="submit"
         >
-          <ArrowUp size={19} strokeWidth={2} />
+          {isWorking ? (
+            <LoaderCircle
+              className="composer-spinner"
+              size={18}
+            />
+          ) : (
+            <ArrowUp
+              size={19}
+              strokeWidth={2}
+            />
+          )}
         </button>
       </div>
     </form>

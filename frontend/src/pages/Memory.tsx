@@ -147,8 +147,8 @@ export function Memory({
                 <div className="memory-history-content">
                   <strong>{activity.title}</strong>
 
-                  <time dateTime={activity.createdAt}>
-                    {formatDateTime(activity.createdAt)}
+                  <time dateTime={activity.updatedAt}>
+                    {formatDateTime(activity.updatedAt)}
                   </time>
                 </div>
 

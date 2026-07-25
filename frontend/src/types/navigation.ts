@@ -1,3 +1,7 @@
+import type {
+  ConversationRecord,
+} from './chat'
+
 export type AppPage =
   | 'home'
   | 'deep-search'
@@ -13,11 +17,8 @@ export type AppPage =
   | 'model-selector'
   | 'opspilot-runtime'
 
-export interface RecentActivity {
-  id: string
-  title: string
-  createdAt: string
-}
+export type RecentActivity =
+  ConversationRecord
 
 export const pageTitles: Record<AppPage, string> = {
   home: 'Home',
