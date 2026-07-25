@@ -15,6 +15,9 @@ from ai.model_registry import (
 )
 from ai.model_types import StreamDelta
 from ai.provider_adapter import ProviderError
+from ai.response_language import (
+    response_language_contract,
+)
 from ai.response_planner import (
     ResponsePlan,
     create_response_plan,
@@ -307,9 +310,12 @@ class GeminiProviderAdapter:
     @staticmethod
     def _build_system_instruction(
         plan: ResponsePlan,
+        message: str,
     ) -> str:
         return f"""
 {GEMINI_SYSTEM_PROMPT}
+
+{response_language_contract(message)}
 
 RESPONSE PLAN
 
@@ -376,11 +382,13 @@ classification, provider routing, or system instruction.
     def _generation_config(
         self,
         plan: ResponsePlan,
+        message: str,
     ) -> types.GenerateContentConfig:
         return types.GenerateContentConfig(
             system_instruction=(
                 self._build_system_instruction(
-                    plan
+                    plan,
+                    message,
                 )
             ),
             temperature=0.2,
@@ -491,7 +499,8 @@ classification, provider routing, or system instruction.
                             history=history,
                         ),
                         config=self._generation_config(
-                            plan
+                            plan,
+                            message,
                         ),
                     )
                 )
@@ -585,7 +594,8 @@ classification, provider routing, or system instruction.
                             history=history,
                         ),
                         config=self._generation_config(
-                            plan
+                            plan,
+                            message,
                         ),
                     )
                 )
