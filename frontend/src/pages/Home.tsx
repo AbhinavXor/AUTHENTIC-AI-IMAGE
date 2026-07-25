@@ -29,6 +29,9 @@ import {
   streamQuestion,
   type ChatMessage,
 } from '../services/api'
+import {
+  parseChartResponse,
+} from '../lib/visualization'
 import type {
   ConversationAttachment,
   ConversationMessage,
@@ -322,6 +325,49 @@ function createTitle(
   )}...`
 }
 
+const maximumHistoryMessageCharacters =
+  6_000
+
+function compactHistoryContent(
+  message: ConversationMessage,
+): string {
+  const rawContent =
+    message.content.trim()
+
+  if (
+    message.role !== 'assistant' ||
+    !rawContent.includes(
+      '```authentic-chart',
+    )
+  ) {
+    return rawContent.slice(
+      0,
+      maximumHistoryMessageCharacters,
+    )
+  }
+
+  const parsed =
+    parseChartResponse(rawContent)
+
+  const visualizationSummary =
+    parsed.charts.length > 0
+      ? `[Visualizations generated: ${parsed.charts
+          .map((chart) => chart.title)
+          .join('; ')}]`
+      : ''
+
+  return [
+    parsed.markdown,
+    visualizationSummary,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(
+      0,
+      maximumHistoryMessageCharacters,
+    )
+}
+
 function toApiHistory(
   messages: ConversationMessage[],
 ): ChatMessage[] {
@@ -335,9 +381,16 @@ function toApiHistory(
     )
     .map((message) => ({
       role: message.role,
-      content: message.content,
+      content:
+        compactHistoryContent(
+          message,
+        ),
     }))
-    .slice(-12)
+    .filter(
+      (message) =>
+        message.content.length > 0,
+    )
+    .slice(-8)
 }
 
 function persistedMessages(
