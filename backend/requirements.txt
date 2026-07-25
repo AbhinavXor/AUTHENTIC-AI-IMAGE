@@ -6,9 +6,15 @@ groq
 google-genai
 mistralai
 openai
+anthropic
 
 python-multipart
 Pillow
 PyMuPDF
 python-docx
 openpyxl
+
+httpx
+requests
+pydantic
+typing-extensions
