@@ -387,7 +387,7 @@ def create_response_plan(
         reasoning_effort = "high"
         max_tokens = max(
             max_tokens,
-            2_800,
+            6_500,
         )
         contract = (
             f"{contract}\n\n"

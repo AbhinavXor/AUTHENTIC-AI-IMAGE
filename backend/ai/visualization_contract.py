@@ -28,8 +28,12 @@ VISUALIZATION OUTPUT CONTRACT
 
 The user explicitly requested a chart, graph, plot, or visualization.
 
-1. Give a concise explanation first.
-2. Then emit one or more fenced `authentic-chart` JSON blocks.
+This visualization contract overrides any earlier instruction about response order.
+
+1. The first non-whitespace output must be one complete fenced
+   `authentic-chart` JSON block.
+2. Close every chart block before writing prose. After all chart blocks,
+   give a concise explanation of no more than 180 words.
 3. Inside each block output valid JSON only: no Markdown, comments,
    JavaScript, functions, HTML, external URLs, or trailing commas.
 4. Never invent missing data. If numeric data is insufficient, explain
