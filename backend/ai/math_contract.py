@@ -25,6 +25,8 @@ _MATH_PATTERNS = (
     r"\bproof\b",
     r"\bshow\s+that\b",
     r"\bsquare\s+root\b",
+    r"\b[a-z]\s+(?:square|squared|cube|cubed)\b",
+    r"\b(?:plus|minus|times|divided\s+by)\b",
     r"\btheorem\b",
     r"\bderivative\b",
     r"\bdifferentiat(?:e|ion)\b",

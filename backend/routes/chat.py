@@ -136,16 +136,6 @@ async def create_streaming_chat_completion(
 ) -> StreamingResponse:
     model_router = get_model_router()
 
-    if not model_router.is_configured():
-        raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-            ),
-            detail=(
-                "No AI provider is configured."
-            ),
-        )
-
     async def generate_events() -> AsyncIterator[str]:
         try:
             async for delta in (

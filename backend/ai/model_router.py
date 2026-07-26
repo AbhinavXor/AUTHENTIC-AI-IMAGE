@@ -4,6 +4,12 @@ from collections.abc import (
     Iterable,
 )
 
+from ai.conversation_context import (
+    resolve_contextual_request,
+)
+from ai.deterministic_math import (
+    build_deterministic_math_answer,
+)
 from ai.deterministic_visualization import (
     attach_deterministic_visualization,
     build_deterministic_visualization,
@@ -49,6 +55,7 @@ logger = logging.getLogger(__name__)
 
 _DETERMINISTIC_PROVIDER = "deterministic"
 _DETERMINISTIC_MODEL = "native-visualization-v1"
+_DETERMINISTIC_MATH_MODEL = "native-math-v1"
 
 _DETERMINISTIC_FALLBACK_TEXT = (
     "The AI explanation is temporarily unavailable. "
@@ -90,6 +97,23 @@ def _deterministic_chat_response(
         usage=TokenUsage(),
     )
 
+
+
+def _deterministic_math_chat_response(
+    *,
+    answer: str,
+    category: str,
+    routing_confidence: float,
+) -> ChatResponse:
+    return ChatResponse(
+        answer=answer,
+        provider=_DETERMINISTIC_PROVIDER,
+        model=_DETERMINISTIC_MATH_MODEL,
+        category=category,
+        routing_confidence=routing_confidence,
+        request_id=None,
+        usage=TokenUsage(),
+    )
 
 
 class ModelRouter:
@@ -189,15 +213,47 @@ class ModelRouter:
         message: str,
         history: list[ChatMessage],
     ) -> ChatResponse:
+        effective_message = (
+            resolve_contextual_request(
+                message,
+                history,
+            )
+        )
+
         classification = classify_task(
-            message
+            effective_message
         )
 
         deterministic_visualization = (
             build_deterministic_visualization(
-                message
+                effective_message
             )
         )
+
+        deterministic_math_answer = (
+            build_deterministic_math_answer(
+                effective_message
+            )
+        )
+
+        if deterministic_math_answer is not None:
+            answer = deterministic_math_answer
+
+            if deterministic_visualization is not None:
+                answer = (
+                    attach_deterministic_visualization(
+                        message=effective_message,
+                        provider_answer=answer,
+                    )
+                )
+
+            return _deterministic_math_chat_response(
+                answer=answer,
+                category=classification.category,
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
 
         adapters = self._ordered_adapters(
             classification.category
@@ -206,7 +262,7 @@ class ModelRouter:
         if not adapters:
             if deterministic_visualization is not None:
                 return _deterministic_chat_response(
-                    message=message,
+                    message=effective_message,
                     category=(
                         classification.category
                     ),
@@ -235,7 +291,7 @@ class ModelRouter:
 
             try:
                 response = await adapter.answer(
-                    message=message,
+                    message=effective_message,
                     history=history,
                     category=classification.category,
                 )
@@ -249,7 +305,7 @@ class ModelRouter:
                 if deterministic_visualization is not None:
                     answer = (
                         attach_deterministic_visualization(
-                            message=message,
+                            message=effective_message,
                             provider_answer=answer,
                         )
                     )
@@ -283,28 +339,11 @@ class ModelRouter:
                     error.status_code,
                 )
 
-                if not error.retryable:
-                    if (
-                        deterministic_visualization
-                        is not None
-                    ):
-                        return (
-                            _deterministic_chat_response(
-                                message=message,
-                                category=(
-                                    classification.category
-                                ),
-                                routing_confidence=(
-                                    classification.confidence
-                                ),
-                            )
-                        )
-
-                    raise
+                continue
 
         if deterministic_visualization is not None:
             return _deterministic_chat_response(
-                message=message,
+                message=effective_message,
                 category=(
                     classification.category
                 ),
@@ -327,15 +366,62 @@ class ModelRouter:
         message: str,
         history: list[ChatMessage],
     ) -> AsyncIterator[StreamDelta]:
+        effective_message = (
+            resolve_contextual_request(
+                message,
+                history,
+            )
+        )
+
         classification = classify_task(
-            message
+            effective_message
         )
 
         deterministic_visualization = (
             build_deterministic_visualization(
-                message
+                effective_message
             )
         )
+
+        deterministic_math_answer = (
+            build_deterministic_math_answer(
+                effective_message
+            )
+        )
+
+        if deterministic_math_answer is not None:
+            answer = deterministic_math_answer
+
+            if deterministic_visualization is not None:
+                answer = (
+                    attach_deterministic_visualization(
+                        message=effective_message,
+                        provider_answer=answer,
+                    )
+                )
+
+            yield StreamDelta(
+                kind="token",
+                content=answer,
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_DETERMINISTIC_MATH_MODEL,
+                category=classification.category,
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
+
+            yield StreamDelta(
+                kind="done",
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_DETERMINISTIC_MATH_MODEL,
+                category=classification.category,
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
+
+            return
 
         adapters = self._ordered_adapters(
             classification.category
@@ -407,7 +493,7 @@ class ModelRouter:
 
             try:
                 async for delta in adapter.stream_answer(
-                    message=message,
+                    message=effective_message,
                     history=history,
                     category=classification.category,
                 ):
@@ -463,7 +549,7 @@ class ModelRouter:
 
                     merged_answer = (
                         attach_deterministic_visualization(
-                            message=message,
+                            message=effective_message,
                             provider_answer=(
                                 provider_answer
                             ),
@@ -545,7 +631,7 @@ class ModelRouter:
                         kind="token",
                         content=(
                             attach_deterministic_visualization(
-                                message=message,
+                                message=effective_message,
                                 provider_answer=(
                                     partial_answer
                                 ),
@@ -581,51 +667,7 @@ class ModelRouter:
 
                     return
 
-                if not error.retryable:
-                    if (
-                        deterministic_visualization
-                        is not None
-                    ):
-                        yield StreamDelta(
-                            kind="token",
-                            content=(
-                                _deterministic_fallback_answer(
-                                    message
-                                )
-                            ),
-                            provider=(
-                                _DETERMINISTIC_PROVIDER
-                            ),
-                            model=(
-                                _DETERMINISTIC_MODEL
-                            ),
-                            category=(
-                                classification.category
-                            ),
-                            routing_confidence=(
-                                classification.confidence
-                            ),
-                        )
-
-                        yield StreamDelta(
-                            kind="done",
-                            provider=(
-                                _DETERMINISTIC_PROVIDER
-                            ),
-                            model=(
-                                _DETERMINISTIC_MODEL
-                            ),
-                            category=(
-                                classification.category
-                            ),
-                            routing_confidence=(
-                                classification.confidence
-                            ),
-                        )
-
-                        return
-
-                    raise
+                continue
 
         if deterministic_visualization is not None:
             yield StreamDelta(

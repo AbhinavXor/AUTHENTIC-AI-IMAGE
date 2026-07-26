@@ -7,6 +7,10 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from ai.deterministic_math import (
+    extract_equation_graph_expression,
+    normalize_spoken_math,
+)
 from ai.math_contract import wants_math_response
 from ai.visualization_contract import wants_visualization
 from ai.visualization_need import assess_visualization_need
@@ -526,7 +530,9 @@ def _normalize_expression(
     expression: str,
 ) -> str:
     result = (
-        expression.strip()
+        normalize_spoken_math(
+            expression
+        ).strip()
         .replace("−", "-")
         .replace("×", "*")
         .replace("÷", "/")
@@ -759,19 +765,40 @@ def _extract_domain(
 def _build_function(
     message: str,
 ) -> DeterministicVisualization | None:
-    match = _FUNCTION.search(message)
-
-    if match is None:
-        return None
-
-    function_name = re.sub(
-        r"\s+",
-        "",
-        match.group(1),
+    normalized_message = (
+        normalize_spoken_math(
+            message
+        )
     )
 
+    match = _FUNCTION.search(
+        normalized_message
+    )
+
+    if match is not None:
+        function_name = re.sub(
+            r"\s+",
+            "",
+            match.group(1),
+        )
+
+        raw_expression = (
+            match.group(2).strip()
+        )
+    else:
+        raw_expression = (
+            extract_equation_graph_expression(
+                normalized_message
+            )
+        )
+
+        if raw_expression is None:
+            return None
+
+        function_name = "y"
+
     expression = _normalize_expression(
-        match.group(2)
+        raw_expression
     )
 
     if not expression:
@@ -850,7 +877,7 @@ def _build_function(
     specification = _base_spec(
         title=(
             f"Graph of {function_name} = "
-            f"{match.group(2).strip()}"
+            f"{raw_expression}"
         ),
         description=(
             f"Generated locally from {sample_count} "

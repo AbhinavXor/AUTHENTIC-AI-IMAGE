@@ -215,6 +215,48 @@ def _score_category(
     return score, tuple(matched)
 
 
+def _looks_like_symbolic_mathematics(
+    message: str,
+) -> bool:
+    normalized = " ".join(
+        message.lower().split()
+    )
+
+    excluded_terms = (
+        "python",
+        "javascript",
+        "typescript",
+        "source code",
+        "chemical equation",
+        "reaction equation",
+    )
+
+    if any(
+        term in normalized
+        for term in excluded_terms
+    ):
+        return False
+
+    patterns = (
+        r"\b[a-z]\s+(?:square|squared|cube|cubed)\b",
+        r"\b[a-z]\s*(?:\^|\*\*)\s*[-+]?\d+",
+        (
+            r"\b[a-z]\b[\s\S]{0,100}"
+            r"(?<![<>])=(?!=)[\s\S]{0,100}\d"
+        ),
+    )
+
+    return any(
+        re.search(
+            pattern,
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        is not None
+        for pattern in patterns
+    )
+
+
 def classify_task(
     message: str,
 ) -> TaskClassification:
@@ -225,6 +267,22 @@ def classify_task(
     word_count = len(
         normalized.split()
     )
+
+    if _looks_like_symbolic_mathematics(
+        message
+    ):
+        return TaskClassification(
+            category="mathematics",
+            complexity=(
+                "complex"
+                if word_count >= 70
+                else "standard"
+            ),
+            confidence=0.99,
+            matched_terms=(
+                "symbolic mathematics",
+            ),
+        )
 
     complex_structure = (
         word_count >= 70
