@@ -6,6 +6,7 @@ from ai.deterministic_visualization import (
 )
 from ai.math_contract import (
     MATH_RESPONSE_CONTRACT,
+    math_response_contract,
     wants_math_response,
 )
 from ai.visualization_need import (
@@ -42,6 +43,7 @@ Do not mention this internal handoff.
 
 
 ResponseIntent = Literal[
+    "mathematics",
     "direct",
     "comparison",
     "procedure",
@@ -177,6 +179,8 @@ _COMPLEXITY_TERMS = (
 
 
 _CONTRACTS: dict[ResponseIntent, str] = {
+    "mathematics": MATH_RESPONSE_CONTRACT,
+
     "direct": """
 Give the direct answer immediately.
 
@@ -378,10 +382,25 @@ def create_response_plan(
         message.lower().split()
     )
 
-    intent = _classify_intent(normalized)
+    math_request = wants_math_response(
+        message
+    )
+
+    intent: ResponseIntent = (
+        "mathematics"
+        if math_request
+        else _classify_intent(
+            normalized
+        )
+    )
+
     complexity = _complexity_score(normalized)
 
-    if intent in {
+    if intent == "mathematics":
+        reasoning_effort: ReasoningEffort = "high"
+        max_tokens = 5_200
+
+    elif intent in {
         "coding",
         "analysis",
     }:
@@ -415,20 +434,13 @@ def create_response_plan(
         )
         max_tokens = 1_200
 
-    contract = _CONTRACTS[intent]
-
-    if wants_math_response(message):
-        reasoning_effort = "high"
-
-        max_tokens = max(
-            max_tokens,
-            3_600,
+    contract = (
+        math_response_contract(
+            message
         )
-
-        contract = (
-            f"{contract}\n\n"
-            f"{MATH_RESPONSE_CONTRACT}"
-        )
+        if math_request
+        else _CONTRACTS[intent]
+    )
 
     explicit_visualization = (
         wants_visualization(message)

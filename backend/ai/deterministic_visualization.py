@@ -536,6 +536,18 @@ def _normalize_expression(
     )
 
     result = re.split(
+        (
+            r"\s*[.!?]\s+"
+            r"(?=(?:find|explain|analy[sz]e|determine|identify|"
+            r"calculate|evaluate|show|state|use|plot|graph|"
+            r"describe|classify)\b)"
+        ),
+        result,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0].strip()
+
+    result = re.split(
         r"\s+(?:for|from|between|over)\s+"
         r"(?=[-+]?\d|x\b)",
         result,
