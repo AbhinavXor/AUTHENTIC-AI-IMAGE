@@ -75,3 +75,35 @@
     border-radius: 10px;
   }
 }
+
+/*
+ * Complex inline mathematics safety.
+ *
+ * KaTeX fractions and quotient-rule expressions can be taller than the
+ * surrounding prose line. These guards force the line box to reserve enough
+ * vertical space while long expressions are promoted to display math by the
+ * Markdown normalizer.
+ */
+.markdown-answer p > .katex,
+.markdown-answer li > .katex,
+.markdown-answer strong > .katex,
+.markdown-answer em > .katex {
+  display: inline-block;
+  max-width: 100%;
+  min-height: 1.65em;
+  padding: 0.16em 0.04em 0.2em;
+  vertical-align: -0.2em;
+}
+
+.markdown-answer .katex-display {
+  line-height: 1.55;
+}
+
+.markdown-answer .katex-display > .katex {
+  display: block;
+  padding: 0.08em 0 0.14em;
+}
+
+.markdown-answer .katex-display .mfrac {
+  margin-block: 0.04em;
+}

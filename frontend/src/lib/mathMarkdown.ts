@@ -36,6 +36,13 @@ const rawFunctionTokenPattern =
 const rawRootPattern =
   /([+\-±]?\s*√\s*(?:\([^)\n]+\)|[a-z0-9.]+))/gi
 
+
+const inlineMathSegmentPattern =
+  /(^|[^$])\$([^$\n]+)\$(?!\$)/g
+
+const displayMathPromotionMarker =
+  'AUTHENTIC_COMPLEX_MATH_DISPLAY_V1'
+
 function toLatex(
   expression: string,
 ): string {
@@ -173,6 +180,104 @@ function normalizeRawMath(
     .join('')
 }
 
+
+function shouldPromoteInlineMath(
+  expression: string,
+): boolean {
+  const normalized =
+    expression.trim()
+
+  const fractionCount =
+    (
+      normalized.match(
+        /\\(?:d|t)?frac\s*\{/g,
+      ) ?? []
+    ).length
+
+  const relationCount =
+    (
+      normalized.match(
+        /(?:=|\\le|\\ge|<|>)/g,
+      ) ?? []
+    ).length
+
+  const hasNonTrivialFraction =
+    fractionCount > 0 &&
+    (
+      normalized.length >= 30 ||
+      /\\frac\{[^{}]*[+\-][^{}]*\}\{/.test(
+        normalized,
+      ) ||
+      /\\frac\{[^{}]{9,}\}/.test(
+        normalized,
+      ) ||
+      /\}\{[^{}]*[+\-][^{}]*\}/.test(
+        normalized,
+      )
+    )
+
+  const hasLongDerivative =
+    (
+      /(?:[fgh](?:')?\s*\([^)]*\)|\\frac\{d)/.test(
+        normalized,
+      ) &&
+      normalized.length >= 34
+    )
+
+  const hasLargeOperator =
+    /\\(?:int|sum|prod|lim)\b/.test(
+      normalized,
+    ) &&
+    normalized.length >= 36
+
+  return (
+    normalized.includes(
+      '\\begin{',
+    ) ||
+    normalized.length >= 72 ||
+    hasNonTrivialFraction ||
+    hasLongDerivative ||
+    hasLargeOperator ||
+    (
+      relationCount >= 2 &&
+      normalized.length >= 36
+    )
+  )
+}
+
+function promoteComplexInlineMath(
+  content: string,
+): string {
+  const promoted =
+    content.replace(
+      inlineMathSegmentPattern,
+      (
+        complete,
+        prefix: string,
+        expression: string,
+      ) => {
+        if (
+          !shouldPromoteInlineMath(
+            expression,
+          )
+        ) {
+          return complete
+        }
+
+        return (
+          `${prefix}\n\n$$\n` +
+          `${expression.trim()}\n` +
+          '$$\n\n'
+        )
+      },
+    )
+
+  return promoted.replace(
+    /\n{3,}/g,
+    '\n\n',
+  )
+}
+
 export function normalizeMathMarkdown(
   content: string,
 ): string {
@@ -207,7 +312,12 @@ export function normalizeMathMarkdown(
           `$${expression.trim()}$`,
       )
 
-  return normalizeRawMath(
-    normalizedDelimiters,
+  const normalizedMath =
+    normalizeRawMath(
+      normalizedDelimiters,
+    )
+
+  return promoteComplexInlineMath(
+    normalizedMath,
   )
 }

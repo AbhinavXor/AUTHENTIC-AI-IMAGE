@@ -31,12 +31,23 @@ Requirements:
 1. Do not output an `authentic-chart` block.
 2. Do not output ECharts JSON, chart configuration, sampled point arrays,
    rendering code, JavaScript, or plotting-library code.
-3. Focus only on the explanation, calculations, interpretation, findings,
-   assumptions, limitations, and conclusions.
+3. Focus on the explanation, calculations, interpretation, assumptions,
+   limitations, and conclusions.
 4. Do not claim that you rendered or generated the chart.
 5. Never invent missing values or relationships.
-6. Refer naturally to the visualization only when it improves the explanation.
-7. Keep the response useful even if the visualization is viewed separately.
+6. Keep the response useful even if the visualization is viewed separately.
+7. Output the following invisible placement marker exactly once:
+
+<!--AUTHENTIC_VISUALIZATION_SLOT-->
+
+8. Place the marker where the visualization best supports understanding.
+9. For mathematical answers, place it directly under the
+   `## Graph and Interpretation` heading, after `## Solution` and before
+   `## Verification`.
+10. Explain the visible graph features after the marker, but derive all
+    mathematical claims in the Solution section.
+11. Do not wrap the marker in a code block.
+12. Do not explain or mention the marker.
 
 Do not mention this internal handoff.
 """.strip()

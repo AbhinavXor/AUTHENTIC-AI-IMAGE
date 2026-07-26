@@ -105,54 +105,108 @@ _SOLUTION_PATTERNS = (
 
 
 MATH_RESPONSE_CONTRACT = r"""
-MATHEMATICAL ANSWER ARCHITECTURE V2
+MATHEMATICAL ANSWER ARCHITECTURE V3
 
-Produce a mathematically complete answer, not merely a discussion of how an
-answer could be obtained.
+Produce a complete, accurate, readable mathematical answer. The response must
+combine direct results, intuitive explanation, formal solution, graphical
+understanding when available, and verification.
 
-NON-NEGOTIABLE OUTPUT RULES
+REQUIRED ANSWER ORDER
 
-1. Solve or analyze the requested problem fully whenever the supplied
-   information is sufficient.
-2. Never stop at statements such as:
+Use the following adaptive order whenever the sections are relevant:
+
+1. Result or Answer
+2. Explanation
+3. Solution
+4. Graph and Interpretation
+5. Verification
+
+Do not move the formal solution behind a long general discussion.
+
+RESULT OR ANSWER
+
+1. State the requested mathematical conclusion immediately.
+2. Include exact values, domains, intervals, restrictions, units, and excluded
+   cases that materially affect the result.
+3. Use `\boxed{...}` for a compact final result when appropriate.
+4. Do not repeat the same summary later without adding information.
+
+EXPLANATION
+
+1. Explain the central idea and why the selected method is appropriate.
+2. Help the reader understand what the result means.
+3. Keep this section shorter than the formal solution.
+4. Do not replace calculations with explanation.
+5. Do not duplicate every solution step in prose.
+
+SOLUTION
+
+1. Perform the requested calculation completely.
+2. Show the derivation in logical order.
+3. Include every material algebraic, calculus, geometric, statistical, or
+   logical step required to justify the answer.
+4. Explain important transformations immediately after or before they occur.
+5. Never stop at statements such as:
    - "the derivative can be found";
-   - "we would solve";
+   - "we would now solve";
    - "one can calculate";
    - "the graph suggests".
-   Perform the calculation and state the result.
-3. Begin with the result or the most important mathematical conclusion.
-4. Then show a clean solution containing all meaningful derivation steps.
-5. End with verification, interpretation, or restrictions when relevant.
-6. Do not use generic research headings such as:
-   - generic lead-finding heading
-   - generic evidence heading
-   - Interpretation
-   - generic recommendation heading
-7. Use descriptive mathematical headings only when they improve navigation.
-8. Do not repeat the same result in several sections.
+6. Never include abandoned calculations, contradictory intermediate answers,
+   or statements such as "this was incorrectly simplified".
+7. Recalculate internally before writing the final response when an
+   intermediate expression appears inconsistent.
+8. Preserve domain restrictions, excluded values, signs, branches, units,
+   initial conditions, and boundary conditions.
+9. Prefer exact values before decimal approximations.
+10. Add approximations only when they improve practical understanding.
+
+GRAPH AND INTERPRETATION
+
+1. Use the graph as visual support for the analytical solution.
+2. Connect visible features to derived results, including intercepts,
+   asymptotes, discontinuities, extrema, monotonic intervals, roots, limits,
+   or other relevant properties.
+3. Never use visual appearance as the only proof of a mathematical claim.
+4. Never invent a feature that was not calculated or supported.
+5. Keep graphical interpretation consistent with the formal solution.
+6. When a trusted visualization handoff is active, leave the actual graph to
+   the backend visualization engine.
+
+VERIFICATION
+
+1. Check the final result using the most appropriate method.
+2. Verification may include substitution, differentiation, integration,
+   sign analysis, dimensional analysis, boundary checks, special values, or
+   comparison with the original expression.
+3. State clearly what the verification confirms.
+4. Do not introduce a new unsupported result during verification.
+
+11. Never include a knowingly incorrect intermediate simplification in the final answer.
 
 MATHEMATICAL TYPESETTING
 
-1. Every mathematical variable, relation, expression, interval, equation,
-   function, derivative, integral, limit, set, and symbolic value must appear
-   inside valid math delimiters.
-2. Use `$...$` for short inline mathematics.
-3. Use `$$...$$` for important equations and multi-line derivations.
-4. Never write raw forms such as:
-   - x^2
-   - f(x) = ...
-   - x <= 3
-   - sqrt(2)
-   as ordinary prose.
-5. Instead use forms such as:
-   - `$x^2$`
-   - `$f(x)=\cdots$`
-   - `$x\le 3$`
-   - `$\sqrt{2}$`
-6. Every delimiter must be balanced.
-7. Never output `$$$`, escaped dollar delimiters, or raw LaTeX commands outside
+1. Put every mathematical variable, relation, expression, interval, equation,
+   function, derivative, integral, limit, set, and symbolic value inside valid
+   math delimiters.
+2. Use `$...$` only for short inline mathematics.
+3. Use `$$...$$` for:
+   - non-trivial fractions;
+   - quotient-rule derivatives;
+   - multi-term equations;
+   - equations containing several equality transformations;
+   - long substitutions;
+   - sign-analysis expressions;
+   - systems of equations;
+   - expressions that would make a prose line crowded.
+4. A fraction containing a polynomial or multi-term numerator or denominator
+   must normally be displayed on its own line.
+5. Do not place a long derivative or rational expression inside the middle of
+   a prose sentence.
+6. Place explanatory prose before or after a displayed equation.
+7. Every delimiter must be balanced.
+8. Never output `$$$`, escaped dollar delimiters, or raw LaTeX commands outside
    mathematical delimiters.
-8. Use conventional notation:
+9. Use conventional notation such as:
    - `\frac{a}{b}`
    - `\sqrt{x}`
    - `\lvert x\rvert`
@@ -160,7 +214,7 @@ MATHEMATICAL TYPESETTING
    - `\le`, `\ge`
    - `\in`, `\notin`
    - `\to`, `\infty`
-9. For aligned derivations use:
+10. For multi-line derivations use:
 
 $$
 \begin{aligned}
@@ -169,32 +223,9 @@ a &= b \\
 \end{aligned}
 $$
 
-10. Use `\boxed{...}` for the final result when appropriate.
-
-SOLUTION QUALITY
-
-1. Briefly identify the given information and objective.
-2. Show actual substitution, simplification, differentiation, integration,
-   factorization, sign analysis, or proof steps.
-3. Explain why important transformations are valid.
-4. Preserve:
-   - domain restrictions;
-   - excluded values;
-   - signs;
-   - branches;
-   - units;
-   - boundary and initial conditions.
-5. Prefer exact values first.
-6. Add decimal approximations only when they improve understanding.
-7. Check the final answer against the original expression whenever practical.
-8. Clearly distinguish:
-   - exact result;
-   - approximation;
-   - assumption;
-   - undefined or excluded case.
-9. A graph may support the solution, but it must never replace the analytical
-   calculations.
-10. Do not expose hidden reasoning or private chain-of-thought.
+11. Keep Markdown headings as plain text.
+12. Do not expose raw LaTeX as ordinary prose.
+13. Do not expose hidden reasoning or private chain-of-thought.
 
 Do not mention this internal contract.
 """.strip()
@@ -203,36 +234,125 @@ Do not mention this internal contract.
 _FUNCTION_ANALYSIS_CONTRACT = r"""
 FUNCTION ANALYSIS MODE
 
-Use this adaptive structure:
+Use the following response architecture.
 
 ## Result
 
-Give a compact summary of the domain, intercepts, discontinuities or
-asymptotes, critical points, monotonic intervals, extrema, and end behavior.
+Provide a compact but complete summary of:
+
+- the domain;
+- symmetry when relevant;
+- intercepts;
+- discontinuities and holes;
+- vertical, horizontal, or oblique asymptotes;
+- critical points;
+- increasing and decreasing intervals;
+- local or global extrema;
+- end behavior.
+
+Use exact values first and useful approximations second.
+
+## Explanation
+
+Explain what the major features mean and how the analysis will be performed.
+
+Clarify the relationship between:
+
+- zeros and intercepts;
+- denominator zeros and domain restrictions;
+- derivative signs and monotonic behavior;
+- derivative sign changes and extrema;
+- polynomial division or limits and asymptotes;
+- the analytical results and the graph.
+
+Keep this explanation intuitive and concise. Do not repeat the complete formal
+derivation here.
 
 ## Solution
 
-Calculate the relevant items in a logical order:
+Give a complete step-by-step solution in a logical mathematical order.
 
-1. State the function and simplify or factor it where useful.
-2. Determine the domain and all excluded values.
-3. Find all intercepts exactly.
-4. Determine discontinuities, holes, and vertical, horizontal, or oblique
-   asymptotes when applicable.
-5. Differentiate the function explicitly.
-6. Solve `$f'(x)=0$` and also identify points where `$f'(x)$` is undefined
-   inside the function's domain.
-7. Build the sign analysis needed to determine increasing and decreasing
-   intervals.
-8. Classify local maxima and minima.
-9. State end behavior and overall shape.
+### Function and domain
+
+State the function clearly. Simplify, factor, or divide it when doing so makes
+the later analysis clearer. Determine all excluded values before using
+derivatives or intervals.
+
+### Symmetry
+
+Check even, odd, or other relevant symmetry when it materially improves the
+analysis.
+
+### Intercepts
+
+Solve the numerator or defining equations exactly. Verify that every proposed
+intercept belongs to the domain.
+
+### Discontinuities and asymptotes
+
+Classify denominator zeros as removable discontinuities or vertical
+asymptotes. Calculate horizontal or oblique asymptotes correctly. Do not label
+an oblique asymptote as horizontal.
+
+### Derivative
+
+Differentiate explicitly and simplify the derivative completely.
+
+Write a long quotient-rule expression as a display equation, then show its
+simplification in a separate aligned display equation.
+
+### Critical points
+
+Solve `$f'(x)=0$` completely. Also identify points where `$f'(x)$ is undefined,
+while distinguishing those points from values excluded from the original
+function's domain.
+
+### Increasing and decreasing intervals
+
+Use a sign table or an equivalent rigorous sign analysis. Keep intervals
+separated at discontinuities.
+
+### Extrema
+
+Classify each critical point from the derivative sign change or another valid
+test. Give exact coordinates when practical and decimal approximations when
+they improve understanding.
+
+### End behavior and overall shape
+
+State the behavior near asymptotes, interval endpoints, and infinity where
+relevant.
+
+Do not leave any requested item unfinished. Do not include a knowingly
+incorrect intermediate simplification.
+
+## Graph and Interpretation
+
+When the trusted visualization handoff is active, place its visualization at
+this point in the answer.
+
+Explain the graph as a visual reading of the completed solution:
+
+- identify each disconnected branch;
+- connect intercepts to axis crossings;
+- connect vertical asymptotes to unbounded behavior;
+- connect derivative sign changes to turning points;
+- connect the slant or horizontal asymptote to end behavior;
+- explain how the graph confirms, but does not replace, the calculations.
 
 ## Verification
 
-Check key values, substitutions, derivative signs, and asymptotic behavior.
+Verify the most important derived results.
 
-Never replace derivative or sign analysis with a visual impression from the
-graph.
+For a rational-function analysis, normally verify:
+
+1. the simplified derivative;
+2. the critical-point equation;
+3. representative derivative signs;
+4. asymptotic behavior;
+5. important substitutions such as intercepts.
+
+State any limitations caused by the requested finite plotting domain.
 """.strip()
 
 
@@ -243,17 +363,39 @@ Use this adaptive structure:
 
 ## Answer
 
-State the final exact result immediately, preferably using `\boxed{...}`.
+State the final exact answer immediately. Use `\boxed{...}` when appropriate.
+Include required restrictions, units, branches, or excluded cases.
+
+## Explanation
+
+Briefly explain the governing idea and why the chosen method works.
+
+Give enough intuition for the reader to understand the solution, but do not
+replace or duplicate the formal derivation.
 
 ## Solution
 
-Show the shortest complete derivation. Include every step required to justify
-the result, but omit mechanical repetition.
+Show a complete step-by-step derivation.
+
+Every important transformation must be mathematically justified. Keep long
+fractions, substitutions, derivatives, integrals, and multi-step equations in
+display-math blocks rather than embedding them inside prose.
+
+Do not omit the actual calculation. Do not include incorrect abandoned work.
+
+## Graph and Interpretation
+
+Include this section only when a graph materially improves understanding or a
+visualization handoff is active.
+
+Explain exactly how the graph supports the calculated result. A graph must not
+replace algebraic, analytic, geometric, or statistical justification.
 
 ## Verification
 
-Substitute the result into the original problem, differentiate or integrate
-back, check units, or apply another appropriate verification method.
+Substitute the answer into the original problem, differentiate or integrate
+back, check units, test boundary conditions, or apply another appropriate
+verification method.
 """.strip()
 
 

@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from ai.math_contract import wants_math_response
 from ai.visualization_contract import wants_visualization
 from ai.visualization_need import assess_visualization_need
 
@@ -959,6 +960,306 @@ def remove_provider_chart_blocks(
     )
 
 
+_VISUALIZATION_SLOT = (
+    "<!--AUTHENTIC_VISUALIZATION_SLOT-->"
+)
+
+_GRAPH_HEADING = re.compile(
+    r"(?im)^##\s+"
+    r"(?:Graph(?:\s+and\s+Interpretation)?|Visualization)"
+    r"\s*$"
+)
+
+_VERIFICATION_HEADING = re.compile(
+    r"(?im)^##\s+Verification\s*$"
+)
+
+
+def _insert_visualization_at_semantic_position(
+    *,
+    message: str,
+    cleaned_answer: str,
+    chart_block: str,
+) -> str:
+    slot_count = cleaned_answer.count(
+        _VISUALIZATION_SLOT
+    )
+
+    if slot_count:
+        result = cleaned_answer.replace(
+            _VISUALIZATION_SLOT,
+            chart_block,
+            1,
+        )
+
+        result = result.replace(
+            _VISUALIZATION_SLOT,
+            "",
+        )
+
+        return result.strip()
+
+    if wants_math_response(message):
+        graph_heading = (
+            _GRAPH_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        if graph_heading is not None:
+            return (
+                cleaned_answer[
+                    :graph_heading.end()
+                ].rstrip()
+                + "\n\n"
+                + chart_block
+                + "\n\n"
+                + cleaned_answer[
+                    graph_heading.end():
+                ].lstrip()
+            ).strip()
+
+        verification_heading = (
+            _VERIFICATION_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        graph_section = (
+            "## Graph and Interpretation\n\n"
+            f"{chart_block}"
+        )
+
+        if verification_heading is not None:
+            return (
+                cleaned_answer[
+                    :verification_heading.start()
+                ].rstrip()
+                + "\n\n"
+                + graph_section
+                + "\n\n"
+                + cleaned_answer[
+                    verification_heading.start():
+                ].lstrip()
+            ).strip()
+
+        return (
+            f"{cleaned_answer.rstrip()}\n\n"
+            f"{graph_section}"
+        ).strip()
+
+    if wants_visualization(message):
+        return (
+            f"{chart_block}\n\n"
+            f"{cleaned_answer}"
+        ).strip()
+
+    return (
+        f"{cleaned_answer}\n\n"
+        f"{chart_block}"
+    ).strip()
+
+
+_VISUALIZATION_SLOT = (
+    "<!--AUTHENTIC_VISUALIZATION_SLOT-->"
+)
+
+_GRAPH_HEADING = re.compile(
+    r"(?im)^##\s+"
+    r"(?:Graph(?:\s+and\s+Interpretation)?|Visualization)"
+    r"\s*$"
+)
+
+_VERIFICATION_HEADING = re.compile(
+    r"(?im)^##\s+Verification\s*$"
+)
+
+
+def _insert_visualization_at_semantic_position(
+    *,
+    message: str,
+    cleaned_answer: str,
+    chart_block: str,
+) -> str:
+    slot_count = cleaned_answer.count(
+        _VISUALIZATION_SLOT
+    )
+
+    if slot_count:
+        result = cleaned_answer.replace(
+            _VISUALIZATION_SLOT,
+            chart_block,
+            1,
+        )
+
+        result = result.replace(
+            _VISUALIZATION_SLOT,
+            "",
+        )
+
+        return result.strip()
+
+    if wants_math_response(message):
+        graph_heading = (
+            _GRAPH_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        if graph_heading is not None:
+            return (
+                cleaned_answer[
+                    :graph_heading.end()
+                ].rstrip()
+                + "\n\n"
+                + chart_block
+                + "\n\n"
+                + cleaned_answer[
+                    graph_heading.end():
+                ].lstrip()
+            ).strip()
+
+        verification_heading = (
+            _VERIFICATION_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        graph_section = (
+            "## Graph and Interpretation\n\n"
+            f"{chart_block}"
+        )
+
+        if verification_heading is not None:
+            return (
+                cleaned_answer[
+                    :verification_heading.start()
+                ].rstrip()
+                + "\n\n"
+                + graph_section
+                + "\n\n"
+                + cleaned_answer[
+                    verification_heading.start():
+                ].lstrip()
+            ).strip()
+
+        return (
+            f"{cleaned_answer.rstrip()}\n\n"
+            f"{graph_section}"
+        ).strip()
+
+    if wants_visualization(message):
+        return (
+            f"{chart_block}\n\n"
+            f"{cleaned_answer}"
+        ).strip()
+
+    return (
+        f"{cleaned_answer}\n\n"
+        f"{chart_block}"
+    ).strip()
+
+
+_VISUALIZATION_SLOT = (
+    "<!--AUTHENTIC_VISUALIZATION_SLOT-->"
+)
+
+_GRAPH_HEADING = re.compile(
+    r"(?im)^##\s+"
+    r"(?:Graph(?:\s+and\s+Interpretation)?|Visualization)"
+    r"\s*$"
+)
+
+_VERIFICATION_HEADING = re.compile(
+    r"(?im)^##\s+Verification\s*$"
+)
+
+
+def _insert_visualization_at_semantic_position(
+    *,
+    message: str,
+    cleaned_answer: str,
+    chart_block: str,
+) -> str:
+    slot_count = cleaned_answer.count(
+        _VISUALIZATION_SLOT
+    )
+
+    if slot_count:
+        result = cleaned_answer.replace(
+            _VISUALIZATION_SLOT,
+            chart_block,
+            1,
+        )
+
+        result = result.replace(
+            _VISUALIZATION_SLOT,
+            "",
+        )
+
+        return result.strip()
+
+    if wants_math_response(message):
+        graph_heading = (
+            _GRAPH_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        if graph_heading is not None:
+            return (
+                cleaned_answer[
+                    :graph_heading.end()
+                ].rstrip()
+                + "\n\n"
+                + chart_block
+                + "\n\n"
+                + cleaned_answer[
+                    graph_heading.end():
+                ].lstrip()
+            ).strip()
+
+        verification_heading = (
+            _VERIFICATION_HEADING.search(
+                cleaned_answer
+            )
+        )
+
+        graph_section = (
+            "## Graph and Interpretation\n\n"
+            f"{chart_block}"
+        )
+
+        if verification_heading is not None:
+            return (
+                cleaned_answer[
+                    :verification_heading.start()
+                ].rstrip()
+                + "\n\n"
+                + graph_section
+                + "\n\n"
+                + cleaned_answer[
+                    verification_heading.start():
+                ].lstrip()
+            ).strip()
+
+        return (
+            f"{cleaned_answer.rstrip()}\n\n"
+            f"{graph_section}"
+        ).strip()
+
+    if wants_visualization(message):
+        return (
+            f"{chart_block}\n\n"
+            f"{cleaned_answer}"
+        ).strip()
+
+    return (
+        f"{cleaned_answer}\n\n"
+        f"{chart_block}"
+    ).strip()
+
+
 def attach_deterministic_visualization(
     *,
     message: str,
@@ -977,19 +1278,21 @@ def attach_deterministic_visualization(
     )
 
     if visualization is None:
-        return cleaned_answer
+        return (
+            cleaned_answer.replace(
+                _VISUALIZATION_SLOT,
+                "",
+            ).strip()
+        )
 
     chart_block = (
         visualization.to_block()
     )
 
-    if wants_visualization(message):
-        return (
-            f"{chart_block}\n\n"
-            f"{cleaned_answer}"
-        ).strip()
-
     return (
-        f"{cleaned_answer}\n\n"
-        f"{chart_block}"
-    ).strip()
+        _insert_visualization_at_semantic_position(
+            message=message,
+            cleaned_answer=cleaned_answer,
+            chart_block=chart_block,
+        )
+    )
