@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from ai.deterministic_visualization import (
+    build_deterministic_visualization,
+)
 from ai.math_contract import (
     MATH_RESPONSE_CONTRACT,
     wants_math_response,
@@ -13,6 +16,29 @@ from ai.visualization_contract import (
     VISUALIZATION_CONTRACT,
     wants_visualization,
 )
+
+
+
+DETERMINISTIC_VISUALIZATION_PROVIDER_CONTRACT = """
+DETERMINISTIC VISUALIZATION HANDOFF
+
+A trusted backend engine will independently generate and validate the
+visualization for this request.
+
+Requirements:
+
+1. Do not output an `authentic-chart` block.
+2. Do not output ECharts JSON, chart configuration, sampled point arrays,
+   rendering code, JavaScript, or plotting-library code.
+3. Focus only on the explanation, calculations, interpretation, findings,
+   assumptions, limitations, and conclusions.
+4. Do not claim that you rendered or generated the chart.
+5. Never invent missing values or relationships.
+6. Refer naturally to the visualization only when it improves the explanation.
+7. Keep the response useful even if the visualization is viewed separately.
+
+Do not mention this internal handoff.
+""".strip()
 
 
 ResponseIntent = Literal[
@@ -414,7 +440,26 @@ def create_response_plan(
         )
     )
 
-    if explicit_visualization:
+    deterministic_visualization = (
+        build_deterministic_visualization(
+            message
+        )
+    )
+
+    if deterministic_visualization is not None:
+        reasoning_effort = "high"
+
+        max_tokens = max(
+            max_tokens,
+            3_600,
+        )
+
+        contract = (
+            f"{contract}\n\n"
+            f"{DETERMINISTIC_VISUALIZATION_PROVIDER_CONTRACT}"
+        )
+
+    elif explicit_visualization:
         reasoning_effort = "high"
 
         max_tokens = max(

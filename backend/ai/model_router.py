@@ -4,6 +4,10 @@ from collections.abc import (
     Iterable,
 )
 
+from ai.deterministic_visualization import (
+    attach_deterministic_visualization,
+    build_deterministic_visualization,
+)
 from ai.model_registry import (
     get_provider_priority,
 )
@@ -37,10 +41,55 @@ from ai.task_classifier import (
 from schemas.chat import (
     ChatMessage,
     ChatResponse,
+    TokenUsage,
 )
 
 
 logger = logging.getLogger(__name__)
+
+_DETERMINISTIC_PROVIDER = "deterministic"
+_DETERMINISTIC_MODEL = "native-visualization-v1"
+
+_DETERMINISTIC_FALLBACK_TEXT = (
+    "The AI explanation is temporarily unavailable. "
+    "The visualization below was generated directly "
+    "from the data or equation in your request."
+)
+
+
+def _deterministic_fallback_answer(
+    message: str,
+) -> str:
+    return attach_deterministic_visualization(
+        message=message,
+        provider_answer=(
+            _DETERMINISTIC_FALLBACK_TEXT
+        ),
+    )
+
+
+def _deterministic_chat_response(
+    *,
+    message: str,
+    category: str,
+    routing_confidence: float,
+) -> ChatResponse:
+    return ChatResponse(
+        answer=(
+            _deterministic_fallback_answer(
+                message
+            )
+        ),
+        provider=_DETERMINISTIC_PROVIDER,
+        model=_DETERMINISTIC_MODEL,
+        category=category,
+        routing_confidence=(
+            routing_confidence
+        ),
+        request_id=None,
+        usage=TokenUsage(),
+    )
+
 
 
 class ModelRouter:
@@ -144,11 +193,28 @@ class ModelRouter:
             message
         )
 
+        deterministic_visualization = (
+            build_deterministic_visualization(
+                message
+            )
+        )
+
         adapters = self._ordered_adapters(
             classification.category
         )
 
         if not adapters:
+            if deterministic_visualization is not None:
+                return _deterministic_chat_response(
+                    message=message,
+                    category=(
+                        classification.category
+                    ),
+                    routing_confidence=(
+                        classification.confidence
+                    ),
+                )
+
             raise ProviderError(
                 "No AI provider is configured.",
                 provider="router",
@@ -178,8 +244,19 @@ class ModelRouter:
                     adapter.provider_name
                 )
 
+                answer = response.answer
+
+                if deterministic_visualization is not None:
+                    answer = (
+                        attach_deterministic_visualization(
+                            message=message,
+                            provider_answer=answer,
+                        )
+                    )
+
                 return response.model_copy(
                     update={
+                        "answer": answer,
                         "category": (
                             classification.category
                         ),
@@ -207,7 +284,34 @@ class ModelRouter:
                 )
 
                 if not error.retryable:
+                    if (
+                        deterministic_visualization
+                        is not None
+                    ):
+                        return (
+                            _deterministic_chat_response(
+                                message=message,
+                                category=(
+                                    classification.category
+                                ),
+                                routing_confidence=(
+                                    classification.confidence
+                                ),
+                            )
+                        )
+
                     raise
+
+        if deterministic_visualization is not None:
+            return _deterministic_chat_response(
+                message=message,
+                category=(
+                    classification.category
+                ),
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
 
         if not attempted_provider:
             raise self._availability_error()
@@ -227,11 +331,53 @@ class ModelRouter:
             message
         )
 
+        deterministic_visualization = (
+            build_deterministic_visualization(
+                message
+            )
+        )
+
         adapters = self._ordered_adapters(
             classification.category
         )
 
         if not adapters:
+            if deterministic_visualization is not None:
+                yield StreamDelta(
+                    kind="token",
+                    content=(
+                        _deterministic_fallback_answer(
+                            message
+                        )
+                    ),
+                    provider=(
+                        _DETERMINISTIC_PROVIDER
+                    ),
+                    model=_DETERMINISTIC_MODEL,
+                    category=(
+                        classification.category
+                    ),
+                    routing_confidence=(
+                        classification.confidence
+                    ),
+                )
+
+                yield StreamDelta(
+                    kind="done",
+                    provider=(
+                        _DETERMINISTIC_PROVIDER
+                    ),
+                    model=_DETERMINISTIC_MODEL,
+                    category=(
+                        classification.category
+                    ),
+                    routing_confidence=(
+                        classification.confidence
+                    ),
+                )
+
+                return
+
             raise ProviderError(
                 "No AI provider is configured.",
                 provider="router",
@@ -251,23 +397,87 @@ class ModelRouter:
             attempted_provider = True
             received_content = False
 
+            buffered_content: list[str] = []
+
+            final_provider = (
+                adapter.provider_name
+            )
+
+            final_model = ""
+
             try:
                 async for delta in adapter.stream_answer(
                     message=message,
                     history=history,
                     category=classification.category,
                 ):
+                    if delta.provider:
+                        final_provider = (
+                            delta.provider
+                        )
+
+                    if delta.model:
+                        final_model = delta.model
+
                     if (
                         delta.kind == "token"
                         and delta.content
                     ):
                         received_content = True
 
+                        if (
+                            deterministic_visualization
+                            is not None
+                        ):
+                            buffered_content.append(
+                                delta.content
+                            )
+
+                    if deterministic_visualization is None:
+                        yield StreamDelta(
+                            kind=delta.kind,
+                            content=delta.content,
+                            provider=delta.provider,
+                            model=delta.model,
+                            category=(
+                                classification.category
+                            ),
+                            routing_confidence=(
+                                classification.confidence
+                            ),
+                        )
+
+                self._health.record_success(
+                    adapter.provider_name
+                )
+
+                if deterministic_visualization is not None:
+                    provider_answer = "".join(
+                        buffered_content
+                    ).strip()
+
+                    if not provider_answer:
+                        provider_answer = (
+                            _DETERMINISTIC_FALLBACK_TEXT
+                        )
+
+                    merged_answer = (
+                        attach_deterministic_visualization(
+                            message=message,
+                            provider_answer=(
+                                provider_answer
+                            ),
+                        )
+                    )
+
                     yield StreamDelta(
-                        kind=delta.kind,
-                        content=delta.content,
-                        provider=delta.provider,
-                        model=delta.model,
+                        kind="token",
+                        content=merged_answer,
+                        provider=final_provider,
+                        model=(
+                            final_model
+                            or _DETERMINISTIC_MODEL
+                        ),
                         category=(
                             classification.category
                         ),
@@ -276,9 +486,20 @@ class ModelRouter:
                         ),
                     )
 
-                self._health.record_success(
-                    adapter.provider_name
-                )
+                    yield StreamDelta(
+                        kind="done",
+                        provider=final_provider,
+                        model=(
+                            final_model
+                            or _DETERMINISTIC_MODEL
+                        ),
+                        category=(
+                            classification.category
+                        ),
+                        routing_confidence=(
+                            classification.confidence
+                        ),
+                    )
 
                 return
 
@@ -290,11 +511,149 @@ class ModelRouter:
                     error,
                 )
 
+                logger.warning(
+                    "Streaming provider failed: "
+                    "provider=%s category=%s "
+                    "code=%s status=%s",
+                    error.provider,
+                    classification.category,
+                    error.code,
+                    error.status_code,
+                )
+
                 if (
-                    received_content
-                    or not error.retryable
+                    deterministic_visualization
+                    is not None
+                    and received_content
                 ):
+                    partial_answer = "".join(
+                        buffered_content
+                    ).strip()
+
+                    if partial_answer:
+                        partial_answer = (
+                            f"{partial_answer}\n\n"
+                            "The explanation may be incomplete "
+                            "because the provider response ended early."
+                        )
+                    else:
+                        partial_answer = (
+                            _DETERMINISTIC_FALLBACK_TEXT
+                        )
+
+                    yield StreamDelta(
+                        kind="token",
+                        content=(
+                            attach_deterministic_visualization(
+                                message=message,
+                                provider_answer=(
+                                    partial_answer
+                                ),
+                            )
+                        ),
+                        provider=final_provider,
+                        model=(
+                            final_model
+                            or _DETERMINISTIC_MODEL
+                        ),
+                        category=(
+                            classification.category
+                        ),
+                        routing_confidence=(
+                            classification.confidence
+                        ),
+                    )
+
+                    yield StreamDelta(
+                        kind="done",
+                        provider=final_provider,
+                        model=(
+                            final_model
+                            or _DETERMINISTIC_MODEL
+                        ),
+                        category=(
+                            classification.category
+                        ),
+                        routing_confidence=(
+                            classification.confidence
+                        ),
+                    )
+
+                    return
+
+                if not error.retryable:
+                    if (
+                        deterministic_visualization
+                        is not None
+                    ):
+                        yield StreamDelta(
+                            kind="token",
+                            content=(
+                                _deterministic_fallback_answer(
+                                    message
+                                )
+                            ),
+                            provider=(
+                                _DETERMINISTIC_PROVIDER
+                            ),
+                            model=(
+                                _DETERMINISTIC_MODEL
+                            ),
+                            category=(
+                                classification.category
+                            ),
+                            routing_confidence=(
+                                classification.confidence
+                            ),
+                        )
+
+                        yield StreamDelta(
+                            kind="done",
+                            provider=(
+                                _DETERMINISTIC_PROVIDER
+                            ),
+                            model=(
+                                _DETERMINISTIC_MODEL
+                            ),
+                            category=(
+                                classification.category
+                            ),
+                            routing_confidence=(
+                                classification.confidence
+                            ),
+                        )
+
+                        return
+
                     raise
+
+        if deterministic_visualization is not None:
+            yield StreamDelta(
+                kind="token",
+                content=(
+                    _deterministic_fallback_answer(
+                        message
+                    )
+                ),
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_DETERMINISTIC_MODEL,
+                category=classification.category,
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
+
+            yield StreamDelta(
+                kind="done",
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_DETERMINISTIC_MODEL,
+                category=classification.category,
+                routing_confidence=(
+                    classification.confidence
+                ),
+            )
+
+            return
 
         if not attempted_provider:
             raise self._availability_error()
