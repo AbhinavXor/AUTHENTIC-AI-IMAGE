@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
+from core.artifact_request_limit import ArtifactRequestSizeLimitMiddleware
+from core.artifact_settings import artifact_settings
 from routes.chat import (
     get_model_router,
     router as chat_router,
@@ -14,6 +16,7 @@ from routes.documents import router as documents_router
 from routes.text_documents import router as text_documents_router
 from routes.spreadsheets import router as spreadsheets_router
 from routes.image_generation import router as image_generation_router
+from routes.artifacts import router as artifacts_router
 
 
 app = FastAPI(
@@ -38,6 +41,13 @@ app.add_middleware(
     allow_headers=[
         "Content-Type",
     ],
+)
+
+app.add_middleware(
+    ArtifactRequestSizeLimitMiddleware,
+    maximum_request_bytes=(
+        artifact_settings.maximum_request_bytes
+    ),
 )
 
 app.include_router(
@@ -70,6 +80,11 @@ app.include_router(
     prefix="/api/v1",
 )
 
+
+app.include_router(
+    artifacts_router,
+    prefix="/api/v1",
+)
 
 @app.get(
     "/api/v1/health",

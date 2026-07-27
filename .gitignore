@@ -23,3 +23,6 @@ frontend/src.backup.*
 
 # macOS
 .DS_Store
+
+# Generated artifacts
+backend/data/generated_artifacts/
