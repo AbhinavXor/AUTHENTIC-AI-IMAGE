@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
@@ -17,6 +20,28 @@ from routes.text_documents import router as text_documents_router
 from routes.spreadsheets import router as spreadsheets_router
 from routes.image_generation import router as image_generation_router
 from routes.artifacts import router as artifacts_router
+from routes.artifact_composer import (
+    router as artifact_composer_router,
+)
+from routes.artifact_jobs import (
+    recover_interrupted_artifact_jobs,
+    router as artifact_jobs_router,
+    shutdown_artifact_job_runner,
+)
+
+
+@asynccontextmanager
+async def lifespan(
+    _: FastAPI,
+) -> AsyncIterator[None]:
+    await asyncio.to_thread(
+        recover_interrupted_artifact_jobs
+    )
+
+    try:
+        yield
+    finally:
+        await shutdown_artifact_job_runner()
 
 
 app = FastAPI(
@@ -25,6 +50,7 @@ app = FastAPI(
     description=(
         "Private backend API for Authentic AI Image."
     ),
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -36,10 +62,12 @@ app.add_middleware(
     allow_methods=[
         "GET",
         "POST",
+        "DELETE",
         "OPTIONS",
     ],
     allow_headers=[
         "Content-Type",
+        "X-Artifact-Job-Token",
     ],
 )
 
@@ -83,6 +111,16 @@ app.include_router(
 
 app.include_router(
     artifacts_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    artifact_composer_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    artifact_jobs_router,
     prefix="/api/v1",
 )
 

@@ -1,6 +1,7 @@
 import {
   Bookmark,
   Folder,
+  FileOutput,
   House,
   MessageCircle,
   Plus,
@@ -49,6 +50,11 @@ const navigationItems: NavigationItem[] = [
     id: 'projects',
     label: 'Projects',
     icon: Folder,
+  },
+  {
+    id: 'artifact-studio',
+    label: 'Artifact Studio',
+    icon: FileOutput,
   },
   {
     id: 'memory',
