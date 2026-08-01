@@ -46,3 +46,5 @@ backend/runtime/
 
 # Frontend test output
 frontend/.test-dist/
+backend/tmp/
+backend/data/artifact_sources/
