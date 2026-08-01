@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import shutil
 from dataclasses import asdict, dataclass
@@ -406,11 +408,32 @@ class ArtifactStorage:
 
         if (
             actual_size != stored.size_bytes
-            or actual_size
-            > self.maximum_file_bytes
+            or actual_size > self.maximum_file_bytes
         ):
             raise ArtifactStorageError(
                 "Stored artifact failed its size integrity check."
+            )
+
+        digest = hashlib.sha256()
+
+        try:
+            with stored.path.open("rb") as file:
+                for chunk in iter(
+                    lambda: file.read(1024 * 1024),
+                    b"",
+                ):
+                    digest.update(chunk)
+        except OSError as error:
+            raise ArtifactStorageError(
+                "Stored artifact could not be verified."
+            ) from error
+
+        if not hmac.compare_digest(
+            digest.hexdigest(),
+            stored.sha256,
+        ):
+            raise ArtifactStorageError(
+                "Stored artifact failed its checksum integrity check."
             )
 
     def create(
@@ -619,6 +642,38 @@ class ArtifactStorage:
                 ) from error
 
         return True
+
+    def stats(self) -> dict[str, int]:
+        file_count = 0
+        total_bytes = 0
+
+        with self._lock:
+            for directory in self.root_directory.iterdir():
+                if (
+                    directory.is_symlink()
+                    or not directory.is_dir()
+                    or directory.name.startswith("_")
+                ):
+                    continue
+
+                try:
+                    stored = self._read_metadata(
+                        directory.name,
+                        directory,
+                    )
+                except (
+                    ArtifactNotFoundError,
+                    ArtifactStorageError,
+                ):
+                    continue
+
+                file_count += 1
+                total_bytes += stored.size_bytes
+
+        return {
+            "file_count": file_count,
+            "total_bytes": total_bytes,
+        }
 
     def cleanup_expired(
         self,

@@ -21,6 +21,9 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import { BrandMark } from '../Brand/BrandMark'
 import {
+  ChatArtifactCard,
+} from '../Artifacts/ChatArtifactCard'
+import {
   normalizeMathMarkdown,
 } from '../../lib/mathMarkdown'
 import {
@@ -29,9 +32,49 @@ import {
 import type {
   ConversationMessage,
 } from '../../types/chat'
+import type {
+  ArtifactRecord,
+} from '../../types/artifacts'
 
 interface ChatTranscriptProps {
   messages: ConversationMessage[]
+  onArtifactDeleted: (
+    messageId: string,
+  ) => void
+  onArtifactDuplicated: (
+    artifact: ArtifactRecord,
+  ) => void
+  onArtifactUpdated: (
+    messageId: string,
+    artifact: ArtifactRecord,
+  ) => void
+}
+
+function readableMarkdownLinkText(
+  value: unknown,
+): string {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number'
+  ) {
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(readableMarkdownLinkText)
+      .join(' ')
+  }
+
+  return ''
+}
+
+function isGeneratedFileDownloadLabel(
+  value: unknown,
+): boolean {
+  return /\b(?:download|open)\s+(?:the\s+)?(?:pdf|docx|pptx|file|document|presentation)\b/i.test(
+    readableMarkdownLinkText(value),
+  )
 }
 
 interface PdfCitationContext {
@@ -329,7 +372,12 @@ function CopyButton({
           ? 'Response copied'
           : 'Copy response'
       }
-      className="response-action-button"
+      className={[
+        'response-action-button',
+        copied ? 'is-copied' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       onClick={handleCopy}
       title={
         copied
@@ -670,10 +718,130 @@ function ResponseActions({
   )
 }
 
+interface AssistantActivityPresentation {
+  label: string
+}
+
+function artifactActivityPresentation(
+  message: ConversationMessage,
+): AssistantActivityPresentation | null {
+  const artifact = message.artifact
+
+  if (
+    !artifact ||
+    (artifact.status !== 'queued' &&
+      artifact.status !== 'running')
+  ) {
+    return null
+  }
+
+  const stage = artifact.stage.toLowerCase()
+
+  if (
+    stage.includes('queue') ||
+    stage.includes('waiting')
+  ) {
+    return {
+      label: 'Preparing document…',
+    }
+  }
+
+  if (
+    stage.includes('source') ||
+    stage.includes('read') ||
+    stage.includes('understand')
+  ) {
+    return {
+      label: 'Reading source…',
+    }
+  }
+
+  if (
+    stage.includes('organ') ||
+    stage.includes('outline') ||
+    stage.includes('section')
+  ) {
+    return {
+      label: 'Structuring document…',
+    }
+  }
+
+  if (
+    stage.includes('render') ||
+    stage.includes('chart') ||
+    stage.includes('visual') ||
+    stage.includes('diagram') ||
+    stage.includes('equation')
+  ) {
+    return {
+      label: 'Rendering visuals…',
+    }
+  }
+
+  if (
+    stage.includes('quality') ||
+    stage.includes('check') ||
+    stage.includes('valid') ||
+    stage.includes('final')
+  ) {
+    return {
+      label: 'Quality checking…',
+    }
+  }
+
+  return {
+    label: 'Building document…',
+  }
+}
+
+function InlineAssistantStatus({
+  label,
+  compact = false,
+}: {
+  label: string
+  compact?: boolean
+}) {
+  return (
+    <span
+      aria-live="polite"
+      className={[
+        'assistant-inline-status',
+        compact ? 'is-compact' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      role="status"
+    >
+      <span
+        aria-hidden="true"
+        className="inline-progress-dots"
+      >
+        <i />
+        <i />
+        <i />
+      </span>
+      <span>{label}</span>
+    </span>
+  )
+}
+
 function AssistantMessage({
   message,
+  onArtifactDeleted,
+  onArtifactDuplicated,
+  onArtifactUpdated,
 }: {
   message: ConversationMessage
+  onArtifactDeleted: (
+    messageId: string,
+  ) => void
+  onArtifactDuplicated: (
+    artifact: ArtifactRecord,
+  ) => void
+  onArtifactUpdated: (
+    messageId: string,
+    artifact: ArtifactRecord,
+  ) => void
 }) {
   const {
     displayContent,
@@ -726,9 +894,45 @@ function AssistantMessage({
       )
       .join('\n')
 
+  const artifactActivity =
+    artifactActivityPresentation(message)
+
+  const assistantActivity:
+    AssistantActivityPresentation | null =
+    artifactActivity ||
+    (message.isStreaming
+      ? {
+          label: hasContent
+            ? 'Responding…'
+            : 'Thinking…',
+        }
+      : null)
+
+  const isAssistantActive =
+    Boolean(assistantActivity)
+
   return (
-    <article className="chat-message assistant-message">
-      <div className="assistant-message-avatar">
+    <article
+      className={[
+        'chat-message',
+        'assistant-message',
+        isAssistantActive
+          ? 'is-active'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div
+        className={[
+          'assistant-message-avatar',
+          isAssistantActive
+            ? 'is-active'
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <BrandMark size={20} />
       </div>
 
@@ -738,10 +942,11 @@ function AssistantMessage({
             Serenya
           </strong>
 
-          {message.isStreaming && (
-            <span className="streaming-status">
-              Responding
-            </span>
+          {assistantActivity && hasContent && (
+            <InlineAssistantStatus
+              compact
+              label={assistantActivity.label}
+            />
           )}
         </header>
 
@@ -749,11 +954,14 @@ function AssistantMessage({
         message.isStreaming ? (
           <div
             aria-label="Serenya is thinking"
-            className="thinking-indicator"
+            className="assistant-thinking-state"
           >
-            <span />
-            <span />
-            <span />
+            <InlineAssistantStatus
+              label={
+                assistantActivity?.label ||
+                'Thinking…'
+              }
+            />
           </div>
         ) : (
           <div className="assistant-content-stack">
@@ -764,15 +972,33 @@ function AssistantMessage({
                     a: ({
                       children,
                       ...properties
-                    }) => (
-                      <a
-                        {...properties}
-                        rel="noreferrer noopener"
-                        target="_blank"
-                      >
-                        {children}
-                      </a>
-                    ),
+                    }) => {
+                      if (
+                        !message.artifact &&
+                        isGeneratedFileDownloadLabel(
+                          children,
+                        )
+                      ) {
+                        return (
+                          <span
+                            className="assistant-unverified-download-label"
+                            title="Generated files are provided through a verified artifact card."
+                          >
+                            {children}
+                          </span>
+                        )
+                      }
+
+                      return (
+                        <a
+                          {...properties}
+                          rel="noreferrer noopener"
+                          target="_blank"
+                        >
+                          {children}
+                        </a>
+                      )
+                    },
                   }}
                   rehypePlugins={[
                     [
@@ -805,8 +1031,10 @@ function AssistantMessage({
                   ) => (
                     <Suspense
                       fallback={
-                        <div className="authentic-chart-loading">
-                          Preparing visualization…
+                        <div className="authentic-chart-loading natural-chart-loading">
+                          <InlineAssistantStatus
+                            label="Preparing visual…"
+                          />
                         </div>
                       }
                       key={`${message.id}:chart:${index}`}
@@ -832,6 +1060,24 @@ function AssistantMessage({
                   specification was invalid.
                 </div>
               )}
+
+            {message.artifact && (
+              <ChatArtifactCard
+                artifact={
+                  message.artifact
+                }
+                messageId={message.id}
+                onArtifactDeleted={
+                  onArtifactDeleted
+                }
+                onArtifactDuplicated={
+                  onArtifactDuplicated
+                }
+                onArtifactUpdated={
+                  onArtifactUpdated
+                }
+              />
+            )}
 
             {message.isStreaming && (
               <span
@@ -994,6 +1240,9 @@ function UserMessage({
 
 export function ChatTranscript({
   messages,
+  onArtifactDeleted,
+  onArtifactDuplicated,
+  onArtifactUpdated,
 }: ChatTranscriptProps) {
   const bottomRef =
     useRef<HTMLDivElement>(null)
@@ -1016,6 +1265,15 @@ export function ChatTranscript({
           <AssistantMessage
             key={message.id}
             message={message}
+            onArtifactDeleted={
+              onArtifactDeleted
+            }
+            onArtifactDuplicated={
+              onArtifactDuplicated
+            }
+            onArtifactUpdated={
+              onArtifactUpdated
+            }
           />
         ) : (
           <UserMessage

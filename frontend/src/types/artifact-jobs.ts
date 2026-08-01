@@ -8,6 +8,7 @@ export type ArtifactJobStatus =
   | 'running'
   | 'succeeded'
   | 'failed'
+  | 'cancelled'
 
 export interface ArtifactJobCreateRequest
   extends ArtifactComposeRequest {}
@@ -53,4 +54,9 @@ export interface ActiveArtifactJob {
     | ArtifactComposeResponse
     | null
   error: string | null
+}
+export interface ArtifactJobCancelResponse {
+  job_id: string
+  status: ArtifactJobStatus
+  cancelled: boolean
 }

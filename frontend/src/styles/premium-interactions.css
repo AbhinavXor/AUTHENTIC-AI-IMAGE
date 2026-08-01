@@ -1,0 +1,521 @@
+/* Premium interaction system: compact composer, truthful Sherry launch, and document progress. */
+
+.activity-orb {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 50%;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.42), transparent 18%),
+    radial-gradient(circle at 50% 55%, rgba(18, 25, 22, 0.96), rgba(5, 8, 7, 0.98) 68%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 0 22px rgba(255, 255, 255, 0.035),
+    0 10px 26px rgba(0, 0, 0, 0.22);
+}
+
+.activity-orb::before,
+.activity-orb::after {
+  position: absolute;
+  content: '';
+  inset: 12%;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.2;
+  transform: rotate(32deg) scaleY(0.44);
+  animation: activity-orb-ring 2.8s linear infinite;
+}
+
+.activity-orb::after {
+  inset: 21%;
+  opacity: 0.13;
+  transform: rotate(-24deg) scaleY(0.6);
+  animation-direction: reverse;
+  animation-duration: 2.2s;
+}
+
+.activity-orb-document {
+  color: #7cf0d0;
+}
+
+.activity-orb-voice {
+  color: #bba8ff;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.5), transparent 17%),
+    radial-gradient(circle at 50% 58%, #1c153c, #070912 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 24px rgba(127, 105, 255, 0.18),
+    0 10px 28px rgba(55, 42, 166, 0.3);
+}
+
+.activity-orb-core {
+  position: absolute;
+  z-index: 1;
+  inset: 38%;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 8px currentColor,
+    0 0 18px currentColor;
+  animation: activity-orb-core 1.45s ease-in-out infinite;
+}
+
+.activity-orb-dot {
+  position: absolute;
+  z-index: 2;
+  width: 2.4px;
+  height: 2.4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: var(--orb-opacity);
+  transform: translate(-50%, -50%) scale(var(--orb-scale));
+  box-shadow: 0 0 5px currentColor;
+  animation: activity-orb-dot 1.6s ease-in-out var(--orb-delay) infinite;
+}
+
+@keyframes activity-orb-ring {
+  to {
+    transform: rotate(392deg) scaleY(0.44);
+  }
+}
+
+@keyframes activity-orb-core {
+  50% {
+    opacity: 0.55;
+    transform: scale(0.72);
+  }
+}
+
+@keyframes activity-orb-dot {
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+/* Compact professional conversation composer. */
+.conversation-prompt-box {
+  grid-template-columns:
+    42px
+    minmax(0, 1fr)
+    42px
+    42px !important;
+  grid-template-areas:
+    "attachment attachment attachment attachment"
+    "upload prompt sherry send" !important;
+  grid-template-rows:
+    auto
+    minmax(48px, auto) !important;
+  gap: 6px !important;
+  min-height: 66px !important;
+  padding: 8px 9px !important;
+  align-items: end !important;
+  overflow: visible !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow:
+    0 18px 52px rgba(20, 29, 25, 0.095),
+    0 2px 8px rgba(20, 29, 25, 0.025),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
+}
+
+.conversation-prompt-box .composer-attachment-slot {
+  grid-area: attachment !important;
+}
+
+.conversation-prompt-box .conversation-tool-button {
+  grid-area: upload !important;
+}
+
+.conversation-prompt-box .conversation-prompt-textarea {
+  grid-area: prompt !important;
+  min-height: 46px !important;
+  max-height: 220px !important;
+  padding: 12px 9px 10px !important;
+  overflow-y: auto !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+  scrollbar-width: thin;
+}
+
+.conversation-prompt-box .conversation-prompt-textarea::placeholder {
+  color: #989f9b !important;
+}
+
+.conversation-prompt-box .conversation-sherry-button {
+  grid-area: sherry !important;
+}
+
+.conversation-prompt-box .conversation-send-button {
+  grid-area: send !important;
+}
+
+.conversation-prompt-box .conversation-tool-button,
+.conversation-prompt-box .conversation-sherry-button,
+.conversation-prompt-box .conversation-send-button {
+  width: 42px !important;
+  height: 42px !important;
+  align-self: end !important;
+  justify-self: center !important;
+}
+
+.conversation-sherry-button {
+  position: relative;
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.conversation-sherry-button.is-launching {
+  transform: scale(1.06);
+}
+
+.conversation-sherry-button.is-launching .sherry-mark,
+.sherry-control.is-launching .sherry-mark {
+  animation: sherry-button-breathe 760ms ease-in-out infinite;
+}
+
+@keyframes sherry-button-breathe {
+  50% {
+    filter: brightness(1.14) saturate(1.18);
+    transform: scale(1.08);
+  }
+}
+
+.sherry-launch-dock {
+  position: absolute;
+  z-index: 90;
+  right: 10px;
+  bottom: calc(100% + 10px);
+  display: flex;
+  min-width: 184px;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px 9px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  color: #fff;
+  background:
+    linear-gradient(145deg, rgba(18, 19, 25, 0.98), rgba(7, 8, 11, 0.98));
+  box-shadow:
+    0 18px 46px rgba(4, 5, 8, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  animation: sherry-dock-enter 260ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.sherry-launch-dock > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.sherry-launch-dock strong {
+  font-size: 11.5px;
+  font-weight: 680;
+}
+
+.sherry-launch-dock small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+}
+
+@keyframes sherry-dock-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Premium document-generation state. */
+.artifact-generation-card {
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(64, 200, 165, 0.14), transparent 36%),
+    linear-gradient(145deg, #101612, #070a08 72%) !important;
+  box-shadow:
+    0 22px 58px rgba(4, 10, 7, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+}
+
+.artifact-generation-hero {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+  padding: 17px 18px 13px;
+}
+
+.artifact-generation-orb {
+  flex: 0 0 auto;
+}
+
+.artifact-generation-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.artifact-generation-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.artifact-generation-eyebrow span {
+  color: #73e4c5;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: 0.09em;
+}
+
+.artifact-generation-eyebrow small {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 8px;
+}
+
+.artifact-generation-copy > strong {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 14px;
+  font-weight: 680;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-generation-copy > p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.artifact-generation-percent {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.artifact-generation-phases {
+  display: grid;
+  padding: 0 18px 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.artifact-generation-phases span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.artifact-generation-phases i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.artifact-generation-phases .is-complete,
+.artifact-generation-phases .is-active {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.artifact-generation-phases .is-complete i {
+  background: #61d8b8;
+}
+
+.artifact-generation-phases .is-active i {
+  background: #84f2d2;
+  box-shadow: 0 0 0 4px rgba(97, 216, 184, 0.1), 0 0 12px #61d8b8;
+  animation: artifact-stage-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes artifact-stage-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+.artifact-generation-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px 17px;
+}
+
+.artifact-generation-footer .chat-artifact-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.artifact-generation-footer .chat-artifact-progress-track span {
+  background: linear-gradient(90deg, #4cc7a6, #8ff4d8);
+  box-shadow: 0 0 14px rgba(76, 199, 166, 0.38);
+}
+
+.artifact-generation-card .chat-artifact-cancel {
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.artifact-generation-card .chat-artifact-cancel:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.chat-artifact-card.is-result-revealing {
+  animation: artifact-result-reveal 460ms cubic-bezier(0.18, 0.85, 0.24, 1) both;
+}
+
+.chat-artifact-card.is-result-revealing .chat-artifact-success-icon {
+  animation: artifact-success-pop 620ms cubic-bezier(0.18, 0.9, 0.25, 1.25) both;
+}
+
+@keyframes artifact-result-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes artifact-success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.25) rotate(-18deg);
+  }
+  70% {
+    transform: scale(1.15) rotate(3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (max-width: 820px) {
+  .conversation-prompt-box {
+    grid-template-columns:
+      40px
+      minmax(0, 1fr)
+      40px
+      40px !important;
+    grid-template-areas:
+      "attachment attachment attachment attachment"
+      "upload prompt sherry send" !important;
+    grid-template-rows: auto minmax(46px, auto) !important;
+    min-height: 62px !important;
+    padding: 7px !important;
+  }
+
+  .conversation-prompt-box .conversation-prompt-textarea {
+    min-height: 44px !important;
+    max-height: 180px !important;
+    padding: 11px 7px 9px !important;
+    font-size: 16px !important;
+  }
+
+  .conversation-prompt-box .conversation-tool-button,
+  .conversation-prompt-box .conversation-sherry-button,
+  .conversation-prompt-box .conversation-send-button {
+    display: grid !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .sherry-launch-dock {
+    right: 4px;
+    min-width: 174px;
+  }
+
+  .artifact-generation-hero {
+    gap: 11px;
+    padding: 15px 14px 12px;
+  }
+
+  .artifact-generation-orb {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .artifact-generation-copy > strong {
+    white-space: normal;
+  }
+
+  .artifact-generation-copy > p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .artifact-generation-phases {
+    padding-inline: 14px;
+    overflow-x: auto;
+    grid-template-columns: repeat(5, minmax(72px, 1fr));
+    scrollbar-width: none;
+  }
+
+  .artifact-generation-phases::-webkit-scrollbar {
+    display: none;
+  }
+
+  .artifact-generation-footer {
+    padding: 0 14px 14px;
+  }
+}
+
+@media (max-width: 370px) {
+  .conversation-prompt-box {
+    grid-template-columns:
+      40px
+      minmax(0, 1fr)
+      40px !important;
+    grid-template-areas:
+      "attachment attachment attachment"
+      "upload prompt send" !important;
+  }
+
+  .conversation-prompt-box .conversation-sherry-button {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-orb::before,
+  .activity-orb::after,
+  .activity-orb-core,
+  .activity-orb-dot,
+  .conversation-sherry-button.is-launching .sherry-mark,
+  .sherry-control.is-launching .sherry-mark,
+  .artifact-generation-phases .is-active i,
+  .chat-artifact-card.is-result-revealing,
+  .chat-artifact-card.is-result-revealing .chat-artifact-success-icon,
+  .sherry-launch-dock {
+    animation: none !important;
+  }
+}

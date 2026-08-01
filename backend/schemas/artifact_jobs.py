@@ -20,6 +20,7 @@ ArtifactJobStatus = Literal[
     "running",
     "succeeded",
     "failed",
+    "cancelled",
 ]
 
 
@@ -126,3 +127,12 @@ class ArtifactJobDeleteResponse(BaseModel):
     )
 
     deleted: bool
+
+class ArtifactJobCancelResponse(BaseModel):
+    """Response returned after cancelling an active artifact job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: str = Field(min_length=32, max_length=32)
+    status: ArtifactJobStatus
+    cancelled: bool

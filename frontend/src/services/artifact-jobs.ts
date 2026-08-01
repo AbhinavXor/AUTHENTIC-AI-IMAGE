@@ -1,5 +1,6 @@
 import type {
   ArtifactJobCreateRequest,
+  ArtifactJobCancelResponse,
   ArtifactJobCreateResponse,
   ArtifactJobDeleteResponse,
   ArtifactJobStatusResponse,
@@ -23,6 +24,9 @@ const apiBaseUrl = (
 
 const artifactJobTokenHeader =
   'X-Artifact-Job-Token'
+
+const idempotencyKeyHeader =
+  'Idempotency-Key'
 
 function isAbortError(
   error: unknown,
@@ -118,6 +122,12 @@ export async function createArtifactJob(
       headers: {
         'Content-Type':
           'application/json',
+        ...(request.idempotency_key
+          ? {
+              [idempotencyKeyHeader]:
+                request.idempotency_key,
+            }
+          : {}),
       },
       body: JSON.stringify(request),
       signal,
@@ -151,6 +161,33 @@ export async function getArtifactJobStatus(
     (
       'Authentic AI could not load '
       + 'the artifact job status.'
+    ),
+  )
+}
+
+export async function cancelArtifactJob(
+  jobId: string,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<ArtifactJobCancelResponse> {
+  return requestJson<ArtifactJobCancelResponse>(
+    (
+      `${apiBaseUrl}/artifacts/jobs/`
+      + encodeURIComponent(jobId)
+      + '/cancel'
+    ),
+    {
+      method: 'POST',
+      headers: {
+        [artifactJobTokenHeader]:
+          accessToken,
+      },
+      cache: 'no-store',
+      signal,
+    },
+    (
+      'Authentic AI could not cancel '
+      + 'the artifact job.'
     ),
   )
 }

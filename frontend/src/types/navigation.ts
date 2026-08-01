@@ -6,7 +6,6 @@ export type AppPage =
   | 'home'
   | 'deep-search'
   | 'projects'
-  | 'artifact-studio'
   | 'memory'
   | 'automations'
   | 'opspilot'
@@ -25,7 +24,6 @@ export const pageTitles: Record<AppPage, string> = {
   home: 'Home',
   'deep-search': 'Deep Search',
   projects: 'Projects',
-  'artifact-studio': 'Artifact Studio',
   memory: 'Memory',
   automations: 'Automations',
   opspilot: 'OpsPilot',

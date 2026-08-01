@@ -1,5 +1,6 @@
-import { UploadMenuButton } from '../Upload/UploadMenuButton'
-import type { ReactNode } from 'react'
+import type {
+  ReactNode,
+} from 'react'
 import {
   ArrowUp,
   LoaderCircle,
@@ -9,18 +10,32 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
 } from 'react'
-import { SherryMark } from '../Brand/SherryMark'
+
+import {
+  SherryMark,
+} from '../Brand/SherryMark'
+import {
+  UploadMenuButton,
+} from '../Upload/UploadMenuButton'
 
 interface PromptBoxProps {
   attachment?: ReactNode
   prompt: string
   selectedFile: File | null
   isWorking: boolean
-  variant?: 'landing' | 'conversation'
-  onPromptChange: (value: string) => void
-  onFileSelected: (file: File) => void
+  variant?:
+    | 'landing'
+    | 'conversation'
+  onPromptChange: (
+    value: string,
+  ) => void
+  onFileSelected: (
+    file: File,
+  ) => void
   onSubmit: () => void
   onSherryClick: () => void
 }
@@ -38,46 +53,154 @@ export function PromptBox({
 }: PromptBoxProps) {
   const fileInputRef =
     useRef<HTMLInputElement>(null)
-
   const textareaRef =
     useRef<HTMLTextAreaElement>(null)
+  const sherryLaunchTimerRef =
+    useRef<number | null>(null)
+  const submitMotionTimerRef =
+    useRef<number | null>(null)
+  const [isSherryLaunching, setIsSherryLaunching] =
+    useState(false)
+  const [isSubmitAnimating, setIsSubmitAnimating] =
+    useState(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const textarea = textareaRef.current
 
     if (!textarea) {
       return
     }
 
-    textarea.style.height = 'auto'
-
+    const computedStyle =
+      window.getComputedStyle(textarea)
+    const minimumHeight =
+      Number.parseFloat(
+        computedStyle.minHeight,
+      ) || (
+        variant === 'conversation'
+          ? 42
+          : 64
+      )
     const maximumHeight =
-      variant === 'conversation'
-        ? 160
-        : 190
+      Number.parseFloat(
+        computedStyle.maxHeight,
+      ) || (
+        variant === 'conversation'
+          ? 180
+          : 190
+      )
 
-    textarea.style.height =
-      `${Math.min(
-        textarea.scrollHeight,
-        maximumHeight,
-      )}px`
+    // Measuring from zero avoids a grid feedback loop where the previous
+    // stretched height becomes the next scrollHeight. That loop made a
+    // one-line conversation prompt look like a large empty panel.
+    textarea.style.setProperty(
+      'height',
+      '0px',
+      'important',
+    )
+    const contentHeight =
+      textarea.scrollHeight
+    const nextHeight = Math.min(
+      maximumHeight,
+      Math.max(
+        minimumHeight,
+        contentHeight,
+      ),
+    )
+
+    textarea.style.setProperty(
+      'height',
+      `${nextHeight}px`,
+      'important',
+    )
+    textarea.style.setProperty(
+      'overflow-y',
+      contentHeight > maximumHeight
+        ? 'auto'
+        : 'hidden',
+      'important',
+    )
   }, [prompt, variant])
+
+
+  useEffect(() => {
+    return () => {
+      if (sherryLaunchTimerRef.current !== null) {
+        window.clearTimeout(sherryLaunchTimerRef.current)
+      }
+
+      if (submitMotionTimerRef.current !== null) {
+        window.clearTimeout(submitMotionTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleSherryLaunch = () => {
+    if (isWorking || isSherryLaunching) {
+      return
+    }
+
+    setIsSherryLaunching(true)
+
+    if (sherryLaunchTimerRef.current !== null) {
+      window.clearTimeout(sherryLaunchTimerRef.current)
+    }
+
+    sherryLaunchTimerRef.current = window.setTimeout(
+      () => {
+        sherryLaunchTimerRef.current = null
+        onSherryClick()
+        setIsSherryLaunching(false)
+      },
+      220,
+    )
+  }
+
+  const playSubmitMotion = () => {
+    setIsSubmitAnimating(true)
+
+    if (submitMotionTimerRef.current !== null) {
+      window.clearTimeout(submitMotionTimerRef.current)
+    }
+
+    submitMotionTimerRef.current = window.setTimeout(
+      () => {
+        submitMotionTimerRef.current = null
+        setIsSubmitAnimating(false)
+      },
+      360,
+    )
+  }
 
   const handleSubmit = (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
+
+    if (submitDisabled) {
+      return
+    }
+
+    playSubmitMotion()
     onSubmit()
   }
 
   const handleKeyDown = (
-    event: KeyboardEvent<HTMLTextAreaElement>,
+    event: KeyboardEvent<
+      HTMLTextAreaElement
+    >,
   ) => {
     if (
       event.key === 'Enter' &&
       !event.shiftKey
     ) {
       event.preventDefault()
+
+      if (submitDisabled) {
+        return
+      }
+
+      playSubmitMotion()
       onSubmit()
     }
   }
@@ -85,7 +208,8 @@ export function PromptBox({
   const handleFileChange = (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = event.target.files?.[0]
+    const file =
+      event.target.files?.[0]
 
     if (file) {
       onFileSelected(file)
@@ -100,7 +224,15 @@ export function PromptBox({
 
   const fileInput = (
     <input
-      accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+      accept={
+        '.pdf,.png,.jpg,.jpeg,.webp,'
+        + '.docx,.txt,.md,.markdown,'
+        + '.json,.csv,.xlsx,'
+        + '.py,.js,.jsx,.ts,.tsx,'
+        + 'application/pdf,'
+        + 'image/png,image/jpeg,'
+        + 'image/webp'
+      }
       className="hidden-file-input"
       onChange={handleFileChange}
       ref={fileInputRef}
@@ -111,16 +243,34 @@ export function PromptBox({
   if (variant === 'conversation') {
     return (
       <form
-        className={`conversation-prompt-box ${attachment ? 'has-attachment' : ''}`}
+        className={
+          [
+            'conversation-prompt-box',
+            attachment
+              ? 'has-attachment'
+              : '',
+            prompt.trim()
+              ? 'has-content'
+              : '',
+            isWorking
+              ? 'is-working'
+              : '',
+            isSherryLaunching
+              ? 'is-sherry-launching'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+        }
         onSubmit={handleSubmit}
       >
         {fileInput}
 
-      {attachment && (
-        <div className="composer-attachment-slot">
-          {attachment}
-        </div>
-      )}
+        {attachment && (
+          <div className="composer-attachment-slot">
+            {attachment}
+          </div>
+        )}
 
         <UploadMenuButton
           buttonClassName="conversation-tool-button"
@@ -133,10 +283,12 @@ export function PromptBox({
           aria-label="Message Serenya"
           className="conversation-prompt-textarea"
           onChange={(event) =>
-            onPromptChange(event.target.value)
+            onPromptChange(
+              event.target.value,
+            )
           }
           onKeyDown={handleKeyDown}
-          placeholder="Message Serenya..."
+          placeholder="Ask Serenya anything, or paste content to analyse, organise, or turn into a file…"
           ref={textareaRef}
           rows={1}
           value={prompt}
@@ -144,13 +296,41 @@ export function PromptBox({
 
         <button
           aria-label="Talk to Sherry"
-          className="conversation-sherry-button"
-          onClick={onSherryClick}
+          aria-pressed={isSherryLaunching}
+          className={[
+            'conversation-sherry-button',
+            isSherryLaunching
+              ? 'is-launching'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          disabled={isWorking || isSherryLaunching}
+          onClick={handleSherryLaunch}
           title="Talk to Sherry"
           type="button"
         >
           <SherryMark size={29} />
         </button>
+
+        {isSherryLaunching && (
+          <div
+            aria-live="polite"
+            className="sherry-launch-dock"
+            role="status"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-progress-dots"
+            >
+              <i />
+              <i />
+              <i />
+            </span>
+
+            <span>Opening Sherry…</span>
+          </div>
+        )}
 
         <button
           aria-label={
@@ -158,7 +338,14 @@ export function PromptBox({
               ? 'Generating response'
               : 'Send message'
           }
-          className="conversation-send-button"
+          className={[
+            'conversation-send-button',
+            isSubmitAnimating
+              ? 'is-submit-animating'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           disabled={submitDisabled}
           type="submit"
         >
@@ -181,7 +368,25 @@ export function PromptBox({
 
   return (
     <form
-      className={`prompt-box ${attachment ? 'has-attachment' : ''}`}
+      className={
+        [
+          'prompt-box',
+          attachment
+            ? 'has-attachment'
+            : '',
+          prompt.trim()
+            ? 'has-content'
+            : '',
+          isWorking
+            ? 'is-working'
+            : '',
+          isSherryLaunching
+            ? 'is-sherry-launching'
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      }
       onSubmit={handleSubmit}
     >
       {fileInput}
@@ -196,10 +401,15 @@ export function PromptBox({
         aria-label="Prompt"
         className="prompt-textarea"
         onChange={(event) =>
-          onPromptChange(event.target.value)
+          onPromptChange(
+            event.target.value,
+          )
         }
         onKeyDown={handleKeyDown}
-        placeholder="Ask Serenya a question or upload a file..."
+        placeholder={
+          'Ask Serenya a question '
+          + 'or upload a file...'
+        }
         ref={textareaRef}
         rows={2}
         value={prompt}
@@ -215,8 +425,17 @@ export function PromptBox({
           />
 
           <button
-            className="sherry-control"
-            onClick={onSherryClick}
+            aria-pressed={isSherryLaunching}
+            className={[
+              'sherry-control',
+              isSherryLaunching
+                ? 'is-launching'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            disabled={isWorking || isSherryLaunching}
+            onClick={handleSherryLaunch}
             type="button"
           >
             <SherryMark
@@ -230,7 +449,14 @@ export function PromptBox({
 
         <button
           aria-label="Submit prompt"
-          className="send-button"
+          className={[
+            'send-button',
+            isSubmitAnimating
+              ? 'is-submit-animating'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           disabled={submitDisabled}
           type="submit"
         >

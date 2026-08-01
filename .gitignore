@@ -26,3 +26,23 @@ frontend/src.backup.*
 
 # Generated artifacts
 backend/data/generated_artifacts/
+
+# Development environments and caches
+.venv/
+**/.venv/
+.pytest_cache/
+**/.pytest_cache/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+.coverage
+htmlcov/
+
+# Artifact runtime metadata
+backend/data/generated_artifacts/
+backend/data/artifact_jobs/
+backend/runtime/
+
+# Frontend test output
+frontend/.test-dist/

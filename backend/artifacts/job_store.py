@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -34,6 +35,8 @@ from schemas.artifact_jobs import (
 
 
 _JOB_FILENAME = "job.json"
+_TOKEN_SECRET_FILENAME = ".token-secret"
+_IDEMPOTENCY_DIRECTORY = "_idempotency"
 _JOB_ID_LENGTH = 32
 
 _ALLOWED_JOB_ID_CHARACTERS = (
@@ -50,6 +53,7 @@ _ACTIVE_STATUSES = {
 _TERMINAL_STATUSES = {
     "succeeded",
     "failed",
+    "cancelled",
 }
 
 _ALLOWED_TRANSITIONS: dict[
@@ -59,13 +63,16 @@ _ALLOWED_TRANSITIONS: dict[
     "queued": {
         "running",
         "failed",
+        "cancelled",
     },
     "running": {
         "succeeded",
         "failed",
+        "cancelled",
     },
     "succeeded": set(),
     "failed": set(),
+    "cancelled": set(),
 }
 
 
@@ -137,6 +144,7 @@ class StoredArtifactJob:
     updated_at: datetime
     expires_at: datetime
     request: ArtifactJobCreateRequest
+    idempotency_key_hash: str | None = None
     artifact: (
         ArtifactComposeResponse
         | None
@@ -250,6 +258,18 @@ class ArtifactJobStore:
         self._lock = RLock()
 
         self._prepare_root()
+        self._idempotency_directory = (
+            self.root_directory
+            / _IDEMPOTENCY_DIRECTORY
+        ).resolve()
+        self._idempotency_directory.mkdir(
+            mode=0o700,
+            parents=False,
+            exist_ok=True,
+        )
+        self._token_secret = (
+            self._load_or_create_token_secret()
+        )
 
     def _prepare_root(self) -> None:
         self.root_directory.mkdir(
@@ -271,6 +291,185 @@ class ArtifactJobStore:
                     "is not a directory."
                 )
             )
+
+    def _load_or_create_token_secret(self) -> bytes:
+        path = (
+            self.root_directory
+            / _TOKEN_SECRET_FILENAME
+        )
+
+        try:
+            if path.is_file():
+                secret = path.read_bytes()
+                if len(secret) < 32:
+                    raise ArtifactJobStorageError(
+                        "Artifact job token secret is invalid."
+                    )
+                return secret
+
+            secret = secrets.token_bytes(32)
+            temporary = path.with_suffix(".tmp")
+            temporary.write_bytes(secret)
+            try:
+                temporary.chmod(0o600)
+            except OSError:
+                pass
+            temporary.replace(path)
+            return secret
+        except OSError as error:
+            raise ArtifactJobStorageError(
+                "Artifact job token secret could not be prepared."
+            ) from error
+
+    def _derive_access_token(
+        self,
+        job_id: str,
+    ) -> str:
+        digest = hmac.new(
+            self._token_secret,
+            job_id.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        return base64.urlsafe_b64encode(
+            digest
+        ).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _request_fingerprint(
+        request: ArtifactJobCreateRequest,
+    ) -> str:
+        payload = request.model_dump(
+            mode="json",
+            exclude={"idempotency_key"},
+        )
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @staticmethod
+    def _idempotency_hash(
+        idempotency_key: str,
+    ) -> str:
+        return hashlib.sha256(
+            idempotency_key.strip().encode("utf-8")
+        ).hexdigest()
+
+    def _idempotency_path(
+        self,
+        key_hash: str,
+    ) -> Path:
+        if (
+            len(key_hash) != 64
+            or any(
+                character
+                not in _ALLOWED_JOB_ID_CHARACTERS
+                for character in key_hash
+            )
+        ):
+            raise ArtifactJobStorageError(
+                "Artifact idempotency key is invalid."
+            )
+        return self._idempotency_directory / f"{key_hash}.json"
+
+    def _write_idempotency_index(
+        self,
+        *,
+        key_hash: str,
+        job_id: str,
+        request_fingerprint: str,
+        expires_at: datetime,
+    ) -> None:
+        path = self._idempotency_path(key_hash)
+        temporary = path.with_suffix(".tmp")
+        payload = {
+            "job_id": job_id,
+            "request_fingerprint": request_fingerprint,
+            "expires_at": expires_at.isoformat(),
+        }
+        try:
+            temporary.write_text(
+                json.dumps(
+                    payload,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            try:
+                temporary.chmod(0o600)
+            except OSError:
+                pass
+            temporary.replace(path)
+        except OSError as error:
+            temporary.unlink(missing_ok=True)
+            raise ArtifactJobStorageError(
+                "Artifact idempotency metadata could not be stored."
+            ) from error
+
+    def _resolve_idempotent_job(
+        self,
+        *,
+        key_hash: str,
+        request_fingerprint: str,
+    ) -> StoredArtifactJob | None:
+        path = self._idempotency_path(key_hash)
+        if not path.is_file():
+            return None
+
+        try:
+            payload = json.loads(
+                path.read_text(encoding="utf-8")
+            )
+            job_id = str(payload["job_id"])
+            stored_fingerprint = str(
+                payload["request_fingerprint"]
+            )
+            expires_at = self._parse_datetime(
+                payload["expires_at"],
+                field_name="expires_at",
+            )
+        except (
+            OSError,
+            KeyError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as error:
+            path.unlink(missing_ok=True)
+            raise ArtifactJobStorageError(
+                "Artifact idempotency metadata is invalid."
+            ) from error
+
+        if expires_at <= self._utc_now():
+            path.unlink(missing_ok=True)
+            return None
+
+        if not hmac.compare_digest(
+            stored_fingerprint,
+            request_fingerprint,
+        ):
+            raise ArtifactJobConflictError(
+                "Idempotency key was reused for a different artifact request."
+            )
+
+        try:
+            return self._read_job(job_id)
+        except ArtifactJobNotFoundError:
+            path.unlink(missing_ok=True)
+            return None
+
+    def _delete_idempotency_index(
+        self,
+        job: StoredArtifactJob,
+    ) -> None:
+        if job.idempotency_key_hash:
+            self._idempotency_path(
+                job.idempotency_key_hash
+            ).unlink(missing_ok=True)
 
     @staticmethod
     def _utc_now() -> datetime:
@@ -413,6 +612,9 @@ class ArtifactJobStore:
                     mode="json"
                 )
             ),
+            "idempotency_key_hash": (
+                job.idempotency_key_hash
+            ),
             "artifact": (
                 job.artifact.model_dump(
                     mode="json"
@@ -459,6 +661,7 @@ class ArtifactJobStore:
                 "running",
                 "succeeded",
                 "failed",
+                "cancelled",
             }:
                 raise ValueError(
                     "Invalid job status."
@@ -524,6 +727,26 @@ class ArtifactJobStore:
                     payload["request"]
                 )
             )
+
+            idempotency_value = payload.get(
+                "idempotency_key_hash"
+            )
+            idempotency_key_hash = (
+                str(idempotency_value)
+                if idempotency_value is not None
+                else None
+            )
+
+            if idempotency_key_hash is not None and (
+                len(idempotency_key_hash) != 64
+                or any(
+                    character not in _ALLOWED_JOB_ID_CHARACTERS
+                    for character in idempotency_key_hash
+                )
+            ):
+                raise ValueError(
+                    "Invalid artifact job idempotency key hash."
+                )
 
             artifact_payload = (
                 payload.get(
@@ -597,6 +820,9 @@ class ArtifactJobStore:
             updated_at=updated_at,
             expires_at=expires_at,
             request=request,
+            idempotency_key_hash=(
+                idempotency_key_hash
+            ),
             artifact=artifact,
             error=error,
         )
@@ -750,7 +976,10 @@ class ArtifactJobStore:
             self.root_directory
             .iterdir()
         ):
-            if not directory.is_dir():
+            if (
+                not directory.is_dir()
+                or directory.name == _IDEMPOTENCY_DIRECTORY
+            ):
                 continue
 
             try:
@@ -782,35 +1011,45 @@ class ArtifactJobStore:
         with self._lock:
             self.cleanup_expired()
 
+            key_hash: str | None = None
+            fingerprint = self._request_fingerprint(
+                request
+            )
+
+            if request.idempotency_key:
+                key_hash = self._idempotency_hash(
+                    request.idempotency_key
+                )
+                existing = self._resolve_idempotent_job(
+                    key_hash=key_hash,
+                    request_fingerprint=fingerprint,
+                )
+                if existing is not None:
+                    return (
+                        existing,
+                        self._derive_access_token(
+                            existing.job_id
+                        ),
+                    )
+
             if (
                 self._active_job_count()
                 >= self.maximum_queued_jobs
             ):
                 raise ArtifactJobCapacityError(
-                    (
-                        "The artifact generation "
-                        "queue is currently full."
-                    )
+                    "The artifact generation queue is currently full."
                 )
 
             now = self._utc_now()
 
             while True:
                 job_id = uuid4().hex
-
-                if not (
-                    self._job_directory(
-                        job_id
-                    )
-                ).exists():
+                if not self._job_directory(job_id).exists():
                     break
 
-            access_token = (
-                secrets.token_urlsafe(
-                    self.access_token_bytes
-                )
+            access_token = self._derive_access_token(
+                job_id
             )
-
             job = StoredArtifactJob(
                 job_id=job_id,
                 access_token_hash=(
@@ -820,30 +1059,30 @@ class ArtifactJobStore:
                 ),
                 status="queued",
                 progress_percent=0,
-                stage=(
-                    "Queued for generation"
-                ),
+                stage="Queued for generation",
                 created_at=now,
                 updated_at=now,
                 expires_at=(
                     now
                     + timedelta(
-                        hours=(
-                            self.retention_hours
-                        )
+                        hours=self.retention_hours
                     )
                 ),
                 request=request,
+                idempotency_key_hash=key_hash,
             )
 
-            self._write_job(
-                job
-            )
+            self._write_job(job)
 
-            return (
-                job,
-                access_token,
-            )
+            if key_hash:
+                self._write_idempotency_index(
+                    key_hash=key_hash,
+                    job_id=job_id,
+                    request_fingerprint=fingerprint,
+                    expires_at=job.expires_at,
+                )
+
+            return job, access_token
 
     def get(
         self,
@@ -856,6 +1095,7 @@ class ArtifactJobStore:
             )
 
             if job.expired:
+                self._delete_idempotency_index(job)
                 self._delete_directory(
                     job.job_id
                 )
@@ -896,6 +1136,7 @@ class ArtifactJobStore:
             )
 
             if job.expired:
+                self._delete_idempotency_index(job)
                 self._delete_directory(
                     job.job_id
                 )
@@ -1015,6 +1256,8 @@ class ArtifactJobStore:
             if status == "succeeded":
                 progress_percent = 100
                 normalized_error = None
+            elif status == "cancelled":
+                normalized_error = None
 
             updated = replace(
                 current,
@@ -1032,6 +1275,33 @@ class ArtifactJobStore:
                 updated
             )
 
+            return updated
+
+    def cancel(
+        self,
+        job_id: str,
+        access_token: str,
+    ) -> StoredArtifactJob:
+        with self._lock:
+            current = self.get(
+                job_id,
+                access_token,
+            )
+
+            if current.terminal:
+                return current
+
+            updated = replace(
+                current,
+                status="cancelled",
+                progress_percent=(
+                    current.progress_percent
+                ),
+                stage="Generation cancelled",
+                updated_at=self._utc_now(),
+                error=None,
+            )
+            self._write_job(updated)
             return updated
 
     def delete(
@@ -1053,11 +1323,43 @@ class ArtifactJobStore:
                     )
                 )
 
+            self._delete_idempotency_index(job)
             self._delete_directory(
                 job.job_id
             )
 
             return True
+
+    def stats(self) -> dict[str, int]:
+        counts = {
+            "queued": 0,
+            "running": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "cancelled": 0,
+        }
+
+        with self._lock:
+            for directory in self.root_directory.iterdir():
+                if (
+                    directory.is_symlink()
+                    or not directory.is_dir()
+                    or directory.name == _IDEMPOTENCY_DIRECTORY
+                ):
+                    continue
+
+                try:
+                    job = self.get_internal(directory.name)
+                except (
+                    ArtifactJobNotFoundError,
+                    ArtifactJobStorageError,
+                ):
+                    continue
+
+                counts[job.status] += 1
+
+        counts["total"] = sum(counts.values())
+        return counts
 
     def cleanup_expired(self) -> int:
         deleted_count = 0
@@ -1068,7 +1370,10 @@ class ArtifactJobStore:
                 self.root_directory
                 .iterdir()
             ):
-                if not directory.is_dir():
+                if (
+                    not directory.is_dir()
+                    or directory.name == _IDEMPOTENCY_DIRECTORY
+                ):
                     continue
 
                 try:
@@ -1084,6 +1389,7 @@ class ArtifactJobStore:
                 if now < job.expires_at:
                     continue
 
+                self._delete_idempotency_index(job)
                 self._delete_directory(
                     job.job_id
                 )
@@ -1112,7 +1418,10 @@ class ArtifactJobStore:
                 self.root_directory
                 .iterdir()
             ):
-                if not directory.is_dir():
+                if (
+                    not directory.is_dir()
+                    or directory.name == _IDEMPOTENCY_DIRECTORY
+                ):
                     continue
 
                 try:

@@ -8,7 +8,6 @@ import { Sidebar } from './components/Sidebar/Sidebar'
 import { Navbar } from './components/Navbar/Navbar'
 import { Home } from './pages/Home'
 import { Memory } from './pages/Memory'
-import { ArtifactStudio } from './pages/ArtifactStudio'
 import { UnderDevelopment } from './pages/UnderDevelopment'
 import type {
   ConversationMessage,
@@ -23,9 +22,9 @@ import 'katex/dist/katex.min.css'
 import './styles/math.css'
 import './styles/mobile.css'
 import './styles/visualization.css'
-import './styles/artifact-studio.css'
-import './styles/artifact-ai-composer.css'
-import './styles/artifact-job-progress.css'
+import './styles/chat-artifact-card.css'
+import './styles/premium-interactions.css'
+import './styles/natural-motion.css'
 
 const conversationStorageKey =
   'authentic-ai-image.conversations.v2'
@@ -430,11 +429,6 @@ function App() {
       )
     }
 
-    if (
-      activePage === 'artifact-studio'
-    ) {
-      return <ArtifactStudio />
-    }
 
     if (activePage === 'memory') {
       return (

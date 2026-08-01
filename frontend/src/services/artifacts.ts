@@ -1,7 +1,15 @@
 import type {
+  ArtifactAuditResponse,
   ArtifactDeleteResponse,
+  ArtifactDuplicateRequest,
+  ArtifactExportRequest,
   ArtifactGenerateRequest,
   ArtifactRecord,
+  ArtifactRenameRequest,
+  ArtifactRestoreRequest,
+  ArtifactRevisionRequest,
+  ArtifactSourceResponse,
+  ArtifactVersionListResponse,
 } from '../types/artifacts'
 
 interface ApiErrorPayload {
@@ -17,6 +25,12 @@ const apiBaseUrl = (
   'http://127.0.0.1:8000/api/v1'
 ).replace(/\/$/, '')
 
+const artifactTokenHeader =
+  'X-Artifact-Token'
+
+const idempotencyKeyHeader =
+  'Idempotency-Key'
+
 export class ArtifactApiError extends Error {
   readonly status: number
 
@@ -25,7 +39,6 @@ export class ArtifactApiError extends Error {
     status: number,
   ) {
     super(message)
-
     this.name = 'ArtifactApiError'
     this.status = status
   }
@@ -60,7 +73,7 @@ async function readApiError(
       }
     }
   } catch {
-    // Use fallback message below.
+    // Use fallback below.
   }
 
   return 'The artifact request could not be completed.'
@@ -96,6 +109,32 @@ function resolveDownloadUrl(
   ).toString()
 }
 
+function artifactHeaders(
+  artifact: Pick<
+    ArtifactRecord,
+    'access_token'
+  >,
+  includeJson = false,
+  idempotencyKey?: string | null,
+): HeadersInit {
+  return {
+    ...(includeJson
+      ? {
+          'Content-Type':
+            'application/json',
+        }
+      : {}),
+    [artifactTokenHeader]:
+      artifact.access_token,
+    ...(idempotencyKey
+      ? {
+          [idempotencyKeyHeader]:
+            idempotencyKey,
+        }
+      : {}),
+  }
+}
+
 async function requestJson<T>(
   url: string,
   init: RequestInit,
@@ -104,10 +143,7 @@ async function requestJson<T>(
   let response: Response
 
   try {
-    response = await fetch(
-      url,
-      init,
-    )
+    response = await fetch(url, init)
   } catch (error) {
     if (isAbortError(error)) {
       throw error
@@ -140,6 +176,12 @@ export async function generateArtifact(
       headers: {
         'Content-Type':
           'application/json',
+        ...(request.idempotency_key
+          ? {
+              [idempotencyKeyHeader]:
+                request.idempotency_key,
+            }
+          : {}),
       },
       body: JSON.stringify(request),
       signal,
@@ -152,16 +194,20 @@ export async function generateArtifact(
 }
 
 export async function getArtifactMetadata(
-  artifactId: string,
+  artifact: ArtifactRecord,
   signal?: AbortSignal,
 ): Promise<ArtifactRecord> {
   return requestJson<ArtifactRecord>(
     (
       `${apiBaseUrl}/artifacts/`
-      + encodeURIComponent(artifactId)
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
     ),
     {
       method: 'GET',
+      headers: artifactHeaders(artifact),
+      cache: 'no-store',
       signal,
     },
     (
@@ -171,17 +217,294 @@ export async function getArtifactMetadata(
   )
 }
 
+export async function getArtifactSource(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<ArtifactSourceResponse> {
+  return requestJson<ArtifactSourceResponse>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/source'
+    ),
+    {
+      method: 'GET',
+      headers: artifactHeaders(artifact),
+      cache: 'no-store',
+      signal,
+    },
+    (
+      'Authentic AI could not recover '
+      + 'the original artifact source.'
+    ),
+  )
+}
+
+
+export async function renameArtifact(
+  artifact: ArtifactRecord,
+  request: ArtifactRenameRequest,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return requestJson<ArtifactRecord>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+    ),
+    {
+      method: 'PATCH',
+      headers: artifactHeaders(
+        artifact,
+        true,
+        request.idempotency_key,
+      ),
+      body: JSON.stringify(request),
+      signal,
+    },
+    'Authentic AI could not rename the artifact.',
+  )
+}
+
+export async function reviseArtifact(
+  artifact: ArtifactRecord,
+  request: ArtifactRevisionRequest,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return requestJson<ArtifactRecord>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/revisions'
+    ),
+    {
+      method: 'POST',
+      headers: artifactHeaders(
+        artifact,
+        true,
+        request.idempotency_key,
+      ),
+      body: JSON.stringify(request),
+      signal,
+    },
+    'Authentic AI could not revise the artifact.',
+  )
+}
+
+export async function exportArtifact(
+  artifact: ArtifactRecord,
+  request: ArtifactExportRequest,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return requestJson<ArtifactRecord>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/exports'
+    ),
+    {
+      method: 'POST',
+      headers: artifactHeaders(
+        artifact,
+        true,
+        request.idempotency_key,
+      ),
+      body: JSON.stringify(request),
+      signal,
+    },
+    'Authentic AI could not export the artifact.',
+  )
+}
+
+export async function duplicateArtifact(
+  artifact: ArtifactRecord,
+  request: ArtifactDuplicateRequest,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return requestJson<ArtifactRecord>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/duplicate'
+    ),
+    {
+      method: 'POST',
+      headers: artifactHeaders(
+        artifact,
+        true,
+        request.idempotency_key,
+      ),
+      body: JSON.stringify(request),
+      signal,
+    },
+    'Authentic AI could not duplicate the artifact.',
+  )
+}
+
+export async function restoreArtifact(
+  artifact: ArtifactRecord,
+  request: ArtifactRestoreRequest,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return requestJson<ArtifactRecord>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/restore'
+    ),
+    {
+      method: 'POST',
+      headers: artifactHeaders(
+        artifact,
+        true,
+        request.idempotency_key,
+      ),
+      body: JSON.stringify(request),
+      signal,
+    },
+    'Authentic AI could not restore the artifact version.',
+  )
+}
+
+export async function listArtifactVersions(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<ArtifactVersionListResponse> {
+  return requestJson<ArtifactVersionListResponse>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/versions'
+    ),
+    {
+      method: 'GET',
+      headers: artifactHeaders(artifact),
+      cache: 'no-store',
+      signal,
+    },
+    'Authentic AI could not load artifact versions.',
+  )
+}
+
+export async function listArtifactAuditEvents(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<ArtifactAuditResponse> {
+  return requestJson<ArtifactAuditResponse>(
+    (
+      `${apiBaseUrl}/artifacts/`
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
+      + '/audit'
+    ),
+    {
+      method: 'GET',
+      headers: artifactHeaders(artifact),
+      cache: 'no-store',
+      signal,
+    },
+    'Authentic AI could not load artifact activity.',
+  )
+}
+
+function artifactForVersion(
+  artifact: ArtifactRecord,
+  version: number,
+  downloadUrl: string,
+  filename: string,
+): ArtifactRecord {
+  return {
+    ...artifact,
+    version,
+    download_url: downloadUrl,
+    filename,
+  }
+}
+
+async function resolveCurrentArtifact(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<ArtifactRecord> {
+  return getArtifactMetadata(
+    artifact,
+    signal,
+  )
+}
+
+async function downloadResolvedArtifact(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<void> {
+  const blob = await fetchArtifactBlob(
+    artifact,
+    signal,
+  )
+  const objectUrl =
+    URL.createObjectURL(blob)
+  const link =
+    document.createElement('a')
+
+  link.href = objectUrl
+  link.download = artifact.filename
+  link.rel = 'noopener'
+  link.style.display = 'none'
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.setTimeout(
+    () => URL.revokeObjectURL(objectUrl),
+    5_000,
+  )
+}
+
+export async function downloadArtifactVersion(
+  artifact: ArtifactRecord,
+  version: number,
+  downloadUrl: string,
+  filename: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return downloadResolvedArtifact(
+    artifactForVersion(
+      artifact,
+      version,
+      downloadUrl,
+      filename,
+    ),
+    signal,
+  )
+}
+
 export async function deleteArtifact(
-  artifactId: string,
+  artifact: ArtifactRecord,
   signal?: AbortSignal,
 ): Promise<ArtifactDeleteResponse> {
   return requestJson<ArtifactDeleteResponse>(
     (
       `${apiBaseUrl}/artifacts/`
-      + encodeURIComponent(artifactId)
+      + encodeURIComponent(
+        artifact.artifact_id,
+      )
     ),
     {
       method: 'DELETE',
+      headers: artifactHeaders(artifact),
       signal,
     },
     (
@@ -191,10 +514,10 @@ export async function deleteArtifact(
   )
 }
 
-export async function downloadArtifact(
+async function fetchArtifactBlob(
   artifact: ArtifactRecord,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<Blob> {
   let response: Response
 
   try {
@@ -204,6 +527,7 @@ export async function downloadArtifact(
       ),
       {
         method: 'GET',
+        headers: artifactHeaders(artifact),
         cache: 'no-store',
         signal,
       },
@@ -231,24 +555,77 @@ export async function downloadArtifact(
 
   const blob = await response.blob()
 
-  const objectUrl =
-    URL.createObjectURL(blob)
+  if (blob.size <= 0) {
+    throw new ArtifactApiError(
+      'The artifact download was empty.',
+      502,
+    )
+  }
 
-  const link =
-    document.createElement('a')
+  return blob
+}
 
-  link.href = objectUrl
-  link.download = artifact.filename
-  link.rel = 'noopener'
-  link.style.display = 'none'
+export async function openArtifact(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<void> {
+  const previewWindow = window.open(
+    'about:blank',
+    '_blank',
+  )
 
-  document.body.appendChild(link)
+  if (!previewWindow) {
+    throw new ArtifactApiError(
+      'The browser blocked the preview window. Allow pop-ups for Authentic AI and try again.',
+      0,
+    )
+  }
 
-  link.click()
-  link.remove()
+  previewWindow.opener = null
+  previewWindow.document.title =
+    'Opening artifact…'
+  previewWindow.document.body.textContent =
+    'Preparing your document preview…'
 
-  window.setTimeout(
-    () => URL.revokeObjectURL(objectUrl),
-    1_000,
+  try {
+    const currentArtifact =
+      await resolveCurrentArtifact(
+        artifact,
+        signal,
+      )
+    const blob = await fetchArtifactBlob(
+      currentArtifact,
+      signal,
+    )
+    const objectUrl =
+      URL.createObjectURL(blob)
+
+    previewWindow.location.replace(
+      objectUrl,
+    )
+
+    window.setTimeout(
+      () => URL.revokeObjectURL(objectUrl),
+      5 * 60_000,
+    )
+  } catch (error) {
+    previewWindow.close()
+    throw error
+  }
+}
+
+export async function downloadArtifact(
+  artifact: ArtifactRecord,
+  signal?: AbortSignal,
+): Promise<void> {
+  const currentArtifact =
+    await resolveCurrentArtifact(
+      artifact,
+      signal,
+    )
+
+  return downloadResolvedArtifact(
+    currentArtifact,
+    signal,
   )
 }

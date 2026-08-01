@@ -11,11 +11,14 @@ from artifacts.docx_renderer import render_docx
 from artifacts.models import (
     ArtifactDocument,
     ChartBlock,
+    DiagramBlock,
+    EquationBlock,
     TableBlock,
 )
 from artifacts.parser import sanitize_filename
 from artifacts.pdf_renderer import render_pdf
 from artifacts.pptx_renderer import render_pptx
+from artifacts.zip_renderer import render_pdf_bundle
 
 
 class ArtifactGenerationError(RuntimeError):
@@ -45,6 +48,7 @@ _RENDERERS: dict[str, Renderer] = {
     "pdf": render_pdf,
     "docx": render_docx,
     "pptx": render_pptx,
+    "zip": render_pdf_bundle,
 }
 
 _MEDIA_TYPES: dict[str, str] = {
@@ -57,6 +61,7 @@ _MEDIA_TYPES: dict[str, str] = {
         "application/vnd.openxmlformats-officedocument."
         "presentationml.presentation"
     ),
+    "zip": "application/zip",
 }
 
 
@@ -149,6 +154,23 @@ def validate_artifact_document(
                             f"Table at {location}, row {row_index} "
                             f"has {len(row)} cells; expected {expected}."
                         )
+
+            elif isinstance(block, DiagramBlock):
+                if len(block.steps) < 2:
+                    raise ArtifactValidationError(
+                        f"Diagram at {location} must contain at least two steps."
+                    )
+
+                if any(not step.strip() for step in block.steps):
+                    raise ArtifactValidationError(
+                        f"Diagram at {location} contains an empty step."
+                    )
+
+            elif isinstance(block, EquationBlock):
+                if not block.expression.strip():
+                    raise ArtifactValidationError(
+                        f"Equation at {location} cannot be empty."
+                    )
 
             elif isinstance(block, ChartBlock):
                 if not block.labels:

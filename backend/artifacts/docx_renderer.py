@@ -16,13 +16,22 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from artifacts.charting import render_chart_image
+from artifacts.equations import (
+    EquationRenderingError,
+    render_equation_image,
+)
 from artifacts.models import (
     ArtifactDocument,
     ArtifactSection,
     BulletListBlock,
+    CalloutBlock,
     ChartBlock,
     CodeBlock,
+    DiagramBlock,
+    EquationBlock,
+    PageBreakBlock,
     ParagraphBlock,
+    QuoteBlock,
     TableBlock,
 )
 
@@ -397,6 +406,72 @@ def _add_code_block(
     run.font.size = Pt(8.8)
 
 
+
+def _add_diagram_block(
+    document: Document,
+    block: DiagramBlock,
+) -> None:
+    if block.title:
+        caption = document.add_paragraph(block.title)
+        caption.style = document.styles["Caption"]
+        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    table = document.add_table(
+        rows=max(1, len(block.steps)),
+        cols=2,
+    )
+    table.style = "Table Grid"
+
+    for index, step in enumerate(block.steps):
+        number_cell = table.cell(index, 0)
+        text_cell = table.cell(index, 1)
+        number_cell.text = str(index + 1)
+        text_cell.text = step
+        number_cell.width = Inches(0.55)
+
+        for cell in (number_cell, text_cell):
+            properties = cell._tc.get_or_add_tcPr()
+            shading = OxmlElement("w:shd")
+            shading.set(qn("w:fill"), "F3F8F6")
+            properties.append(shading)
+
+
+def _add_equation_block(
+    document: Document,
+    block: EquationBlock,
+    *,
+    image_path: Path,
+) -> None:
+    paragraph = document.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(6)
+    paragraph.paragraph_format.space_after = Pt(8)
+
+    if block.label:
+        label = paragraph.add_run(f"{block.label}\n")
+        label.bold = True
+
+    try:
+        pixel_width, pixel_height = (
+            render_equation_image(
+                block.expression,
+                image_path,
+            )
+        )
+        aspect_ratio = pixel_width / pixel_height
+        image_width_inches = min(
+            6.0,
+            max(1.6, aspect_ratio * 0.48),
+        )
+        paragraph.add_run().add_picture(
+            str(image_path),
+            width=Inches(image_width_inches),
+        )
+    except EquationRenderingError:
+        expression = paragraph.add_run(block.expression)
+        expression.font.name = "Cambria Math"
+        expression.font.size = Pt(11)
+
 def _add_section(
     document: Document,
     section: ArtifactSection,
@@ -417,6 +492,24 @@ def _add_section(
             document.add_paragraph(
                 block.text
             )
+        elif isinstance(block, QuoteBlock):
+            paragraph = document.add_paragraph()
+            paragraph.style = document.styles["Quote"]
+            run = paragraph.add_run(block.text)
+            run.italic = True
+
+        elif isinstance(block, CalloutBlock):
+            paragraph = document.add_paragraph()
+            properties = paragraph._p.get_or_add_pPr()
+            shading = OxmlElement("w:shd")
+            shading.set(qn("w:fill"), "F1F7F5")
+            properties.append(shading)
+            title_run = paragraph.add_run(
+                f"{block.title}\n"
+            )
+            title_run.bold = True
+            paragraph.add_run(block.text)
+
 
         elif isinstance(block, BulletListBlock):
             style_name = (
@@ -472,6 +565,24 @@ def _add_section(
             caption.alignment = (
                 WD_ALIGN_PARAGRAPH.CENTER
             )
+
+        elif isinstance(block, DiagramBlock):
+            _add_diagram_block(document, block)
+
+        elif isinstance(block, EquationBlock):
+            chart_counter[0] += 1
+            equation_path = (
+                chart_directory
+                / f"equation-{chart_counter[0]}.png"
+            )
+            _add_equation_block(
+                document,
+                block,
+                image_path=equation_path,
+            )
+
+        elif isinstance(block, PageBreakBlock):
+            document.add_page_break()
 
         elif isinstance(block, CodeBlock):
             _add_code_block(

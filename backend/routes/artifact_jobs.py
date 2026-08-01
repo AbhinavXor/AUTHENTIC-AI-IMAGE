@@ -30,12 +30,11 @@ from core.artifact_job_rate_limit import (
     resolve_artifact_job_client_key,
 )
 from routes.artifacts import (
+    get_artifact_repository,
     get_artifact_storage,
 )
-from routes.chat import (
-    get_model_router,
-)
 from schemas.artifact_jobs import (
+    ArtifactJobCancelResponse,
     ArtifactJobCreateRequest,
     ArtifactJobCreateResponse,
     ArtifactJobDeleteResponse,
@@ -52,6 +51,7 @@ router = APIRouter(
 _ACCESS_TOKEN_HEADER = (
     "X-Artifact-Job-Token"
 )
+_IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
 
 
 @lru_cache(maxsize=1)
@@ -61,18 +61,30 @@ def get_artifact_job_store() -> (
     return ArtifactJobStore()
 
 
+def _get_model_router():
+    from routes.chat import get_model_router
+
+    return get_model_router()
+
+
 @lru_cache(maxsize=1)
 def get_artifact_job_runner() -> (
     ArtifactJobRunner
 ):
+    from routes.artifact_sources import get_artifact_source_vault
+
     return ArtifactJobRunner(
         job_store=(
             get_artifact_job_store()
         ),
-        model_router=get_model_router(),
+        model_router=_get_model_router(),
         artifact_storage=(
             get_artifact_storage()
         ),
+        artifact_repository=(
+            get_artifact_repository()
+        ),
+        source_vault=get_artifact_source_vault(),
     )
 
 
@@ -202,7 +214,25 @@ async def create_artifact_job(
     payload: ArtifactJobCreateRequest,
     request: Request,
     response: Response,
+    idempotency_key_header: str | None = Header(
+        default=None,
+        alias=_IDEMPOTENCY_KEY_HEADER,
+    ),
 ) -> ArtifactJobCreateResponse:
+    header_key = (idempotency_key_header or "").strip() or None
+    if header_key and payload.idempotency_key and header_key != payload.idempotency_key:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Idempotency-Key header does not match "
+                "the request body idempotency_key."
+            ),
+        )
+    if header_key and not payload.idempotency_key:
+        payload = payload.model_copy(
+            update={"idempotency_key": header_key}
+        )
+
     client_key = (
         resolve_artifact_job_client_key(
             request
@@ -242,6 +272,12 @@ async def create_artifact_job(
                 payload,
             )
         )
+
+    except ArtifactJobConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
 
     except ArtifactJobCapacityError as error:
         raise HTTPException(
@@ -387,6 +423,49 @@ async def get_artifact_job_status(
         expires_at=job.expires_at,
         artifact=job.artifact,
         error=job.error,
+    )
+
+
+@router.post(
+    "/{job_id}/cancel",
+    response_model=ArtifactJobCancelResponse,
+)
+async def cancel_artifact_job(
+    job_id: str,
+    response: Response,
+    access_token: str | None = Header(
+        default=None,
+        alias=_ACCESS_TOKEN_HEADER,
+    ),
+) -> ArtifactJobCancelResponse:
+    token = _require_access_token(access_token)
+
+    try:
+        job = await asyncio.to_thread(
+            get_artifact_job_store().cancel,
+            job_id,
+            token,
+        )
+        get_artifact_job_runner().cancel(
+            job_id
+        )
+    except (
+        ArtifactJobNotFoundError,
+        ArtifactJobExpiredError,
+        ArtifactJobAccessError,
+    ) as error:
+        _raise_job_lookup_error(error)
+    except ArtifactJobStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Artifact job could not be cancelled.",
+        ) from error
+
+    _set_private_headers(response)
+    return ArtifactJobCancelResponse(
+        job_id=job.job_id,
+        status=job.status,
+        cancelled=(job.status == "cancelled"),
     )
 
 

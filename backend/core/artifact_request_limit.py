@@ -11,8 +11,12 @@ from starlette.types import (
 )
 
 
-_ARTIFACT_GENERATE_PATH: Final = (
-    "/api/v1/artifacts/generate"
+_ARTIFACT_WRITE_PATHS: Final = frozenset(
+    {
+        "/api/v1/artifacts/generate",
+        "/api/v1/artifacts/compose",
+        "/api/v1/artifacts/jobs",
+    }
 )
 
 
@@ -128,7 +132,7 @@ class ArtifactRequestSizeLimitMiddleware:
             scope.get("type") != "http"
             or scope.get("method") != "POST"
             or scope.get("path")
-            != _ARTIFACT_GENERATE_PATH
+            not in _ARTIFACT_WRITE_PATHS
         ):
             await self.app(
                 scope,

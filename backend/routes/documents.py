@@ -34,6 +34,7 @@ from ai.document_service import (
 from ai.scanned_pdf_service import (
     ScannedPdfService,
 )
+from artifacts.prompt_compiler import compact_analysis_instruction
 from core.document_settings import (
     document_settings,
 )
@@ -70,18 +71,10 @@ def _validate_prompt(
             "and cite the relevant pages."
         )
 
-    if (
-        len(normalized)
-        > document_settings
-        .maximum_prompt_characters
-    ):
-        raise HTTPException(
-            status_code=(
-                status.HTTP_422_UNPROCESSABLE_ENTITY
-            ),
-            detail=(
-                "Document prompt is too long."
-            ),
+    if len(normalized) > document_settings.maximum_prompt_characters:
+        return compact_analysis_instruction(
+            normalized,
+            maximum_characters=document_settings.maximum_prompt_characters,
         )
 
     return normalized

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "src",
+    "outDir": ".test-dist",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/lib/artifactCommandRouter.ts",
+    "src/lib/artifactSourceResolver.ts",
+    "src/lib/artifactReferenceResolver.ts",
+    "src/lib/chatArtifactIntent.ts",
+    "src/lib/artifactPromptProfile.ts",
+    "src/types/artifact-composer.ts",
+    "src/services/artifact-source-vault.ts",
+    "src/types/artifacts.ts",
+    "src/types/artifact-jobs.ts",
+    "src/types/chat-artifacts.ts",
+    "src/types/artifact-intent.ts",
+    "src/types/chat.ts"
+  ]
+}

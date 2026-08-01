@@ -25,6 +25,9 @@ from ai.provider_adapter import (
 from ai.provider_health import (
     ProviderHealthManager,
 )
+from ai.product_identity import (
+    resolve_product_identity_response,
+)
 from ai.providers.groq_adapter import (
     GroqProviderAdapter,
 )
@@ -56,6 +59,7 @@ logger = logging.getLogger(__name__)
 _DETERMINISTIC_PROVIDER = "deterministic"
 _DETERMINISTIC_MODEL = "native-visualization-v1"
 _DETERMINISTIC_MATH_MODEL = "native-math-v1"
+_PRODUCT_IDENTITY_MODEL = "native-product-identity-v1"
 
 _DETERMINISTIC_FALLBACK_TEXT = (
     "The AI explanation is temporarily unavailable. "
@@ -111,6 +115,20 @@ def _deterministic_math_chat_response(
         model=_DETERMINISTIC_MATH_MODEL,
         category=category,
         routing_confidence=routing_confidence,
+        request_id=None,
+        usage=TokenUsage(),
+    )
+
+
+def _product_identity_chat_response(
+    answer: str,
+) -> ChatResponse:
+    return ChatResponse(
+        answer=answer,
+        provider=_DETERMINISTIC_PROVIDER,
+        model=_PRODUCT_IDENTITY_MODEL,
+        category="fast_chat",
+        routing_confidence=1.0,
         request_id=None,
         usage=TokenUsage(),
     )
@@ -213,6 +231,14 @@ class ModelRouter:
         message: str,
         history: list[ChatMessage],
     ) -> ChatResponse:
+        identity_answer = resolve_product_identity_response(
+            message
+        )
+        if identity_answer is not None:
+            return _product_identity_chat_response(
+                identity_answer
+            )
+
         effective_message = (
             resolve_contextual_request(
                 message,
@@ -366,6 +392,27 @@ class ModelRouter:
         message: str,
         history: list[ChatMessage],
     ) -> AsyncIterator[StreamDelta]:
+        identity_answer = resolve_product_identity_response(
+            message
+        )
+        if identity_answer is not None:
+            yield StreamDelta(
+                kind="token",
+                content=identity_answer,
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_PRODUCT_IDENTITY_MODEL,
+                category="fast_chat",
+                routing_confidence=1.0,
+            )
+            yield StreamDelta(
+                kind="done",
+                provider=_DETERMINISTIC_PROVIDER,
+                model=_PRODUCT_IDENTITY_MODEL,
+                category="fast_chat",
+                routing_confidence=1.0,
+            )
+            return
+
         effective_message = (
             resolve_contextual_request(
                 message,

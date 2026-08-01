@@ -5,6 +5,12 @@ import {
   Menu,
   Search,
 } from 'lucide-react'
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+
 import { SherryMark } from '../Brand/SherryMark'
 import type { AppPage } from '../../types/navigation'
 
@@ -19,6 +25,39 @@ export function Navbar({
   onNavigate,
   onToggleSidebar,
 }: NavbarProps) {
+  const launchTimerRef = useRef<number | null>(null)
+  const [isSherryLaunching, setIsSherryLaunching] =
+    useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (launchTimerRef.current !== null) {
+        window.clearTimeout(launchTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleSherryLaunch = () => {
+    if (isSherryLaunching) {
+      return
+    }
+
+    setIsSherryLaunching(true)
+
+    if (launchTimerRef.current !== null) {
+      window.clearTimeout(launchTimerRef.current)
+    }
+
+    launchTimerRef.current = window.setTimeout(
+      () => {
+        launchTimerRef.current = null
+        setIsSherryLaunching(false)
+        onNavigate('sherry')
+      },
+      220,
+    )
+  }
+
   return (
     <header className="top-navbar">
       <div className="navbar-left">
@@ -59,15 +98,42 @@ export function Navbar({
           <span>Search</span>
         </button>
 
-        <button
-          aria-label="Open Sherry voice assistant"
-          className="sherry-navbar-button"
-          onClick={() => onNavigate('sherry')}
-          title="Sherry voice assistant"
-          type="button"
-        >
-          <SherryMark size={32} />
-        </button>
+        <div className="navbar-sherry-wrap">
+          <button
+            aria-label="Open Sherry voice assistant"
+            aria-pressed={isSherryLaunching}
+            className={[
+              'sherry-navbar-button',
+              isSherryLaunching ? 'is-launching' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            disabled={isSherryLaunching}
+            onClick={handleSherryLaunch}
+            title="Sherry voice assistant"
+            type="button"
+          >
+            <SherryMark size={32} />
+          </button>
+
+          {isSherryLaunching && (
+            <div
+              aria-live="polite"
+              className="navbar-sherry-launch-pill"
+              role="status"
+            >
+              <span
+                aria-hidden="true"
+                className="inline-progress-dots"
+              >
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>Opening Sherry…</span>
+            </div>
+          )}
+        </div>
 
         <button
           aria-label="History"

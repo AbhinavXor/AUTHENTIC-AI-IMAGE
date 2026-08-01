@@ -11,13 +11,22 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
 from artifacts.charting import render_chart_image
+from artifacts.equations import (
+    EquationRenderingError,
+    render_equation_image,
+)
 from artifacts.models import (
     ArtifactDocument,
     ArtifactSection,
     BulletListBlock,
+    CalloutBlock,
     ChartBlock,
     CodeBlock,
+    DiagramBlock,
+    EquationBlock,
+    PageBreakBlock,
     ParagraphBlock,
+    QuoteBlock,
     TableBlock,
 )
 
@@ -688,6 +697,157 @@ def _add_code_slide(
     )
 
 
+
+def _add_diagram_slide(
+    presentation: Presentation,
+    artifact: ArtifactDocument,
+    section_title: str,
+    block: DiagramBlock,
+    *,
+    slide_number: int,
+) -> None:
+    slide = presentation.slides.add_slide(
+        presentation.slide_layouts[6]
+    )
+    _set_slide_background(slide)
+    _add_top_rule(slide)
+    _add_slide_title(slide, block.title or section_title)
+
+    step_count = max(1, len(block.steps))
+    top = 1.62
+    available_height = 4.85
+    box_height = min(0.82, available_height / step_count - 0.08)
+    box_height = max(0.5, box_height)
+
+    for index, step in enumerate(block.steps):
+        y = top + index * (available_height / step_count)
+        box = slide.shapes.add_textbox(
+            Inches(1.35),
+            Inches(y),
+            Inches(10.6),
+            Inches(box_height),
+        )
+        frame = box.text_frame
+        frame.clear()
+        frame.word_wrap = True
+        frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        paragraph = frame.paragraphs[0]
+        paragraph.text = f"{index + 1:02d}   {step}"
+        paragraph.font.name = "Aptos"
+        paragraph.font.size = Pt(16 if step_count <= 6 else 13)
+        paragraph.font.color.rgb = BODY
+
+        fill = box.fill
+        fill.solid()
+        fill.fore_color.rgb = LIGHT
+        box.line.color.rgb = SLATE
+        box.line.width = Pt(0.8)
+
+        if index < len(block.steps) - 1:
+            arrow = slide.shapes.add_textbox(
+                Inches(6.15),
+                Inches(y + box_height),
+                Inches(0.55),
+                Inches(0.3),
+            )
+            arrow_p = arrow.text_frame.paragraphs[0]
+            arrow_p.text = "↓"
+            arrow_p.alignment = PP_ALIGN.CENTER
+            arrow_p.font.size = Pt(15)
+            arrow_p.font.color.rgb = SLATE
+
+    _add_footer(
+        slide,
+        slide_number=slide_number,
+        document_title=artifact.title,
+    )
+
+
+def _add_equation_slide(
+    presentation: Presentation,
+    artifact: ArtifactDocument,
+    section_title: str,
+    block: EquationBlock,
+    *,
+    image_path: Path,
+    slide_number: int,
+) -> None:
+    try:
+        pixel_width, pixel_height = (
+            render_equation_image(
+                block.expression,
+                image_path,
+                font_size=24,
+            )
+        )
+    except EquationRenderingError:
+        _add_paragraph_slide(
+            presentation,
+            artifact,
+            block.label or section_title,
+            block.expression,
+            continuation=1,
+            slide_number=slide_number,
+        )
+        return
+
+    slide = presentation.slides.add_slide(
+        presentation.slide_layouts[6]
+    )
+    _set_slide_background(slide)
+    _add_top_rule(slide)
+    _add_slide_title(
+        slide,
+        block.label or section_title,
+        subtitle=(
+            section_title
+            if block.label
+            else None
+        ),
+    )
+
+    panel = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(1.0),
+        Inches(2.05),
+        Inches(11.33),
+        Inches(2.75),
+    )
+    panel.fill.solid()
+    panel.fill.fore_color.rgb = CODE_BG
+    panel.line.color.rgb = BORDER
+    panel.line.width = Pt(0.9)
+
+    aspect_ratio = pixel_width / pixel_height
+    target_height = 0.95
+    target_width = target_height * aspect_ratio
+    maximum_width = 9.8
+
+    if target_width > maximum_width:
+        target_width = maximum_width
+        target_height = target_width / aspect_ratio
+
+    target_height = min(target_height, 1.65)
+    target_width = target_height * aspect_ratio
+
+    left = (13.333 - target_width) / 2
+    top = 2.05 + (2.75 - target_height) / 2
+
+    slide.shapes.add_picture(
+        str(image_path),
+        Inches(left),
+        Inches(top),
+        width=Inches(target_width),
+        height=Inches(target_height),
+    )
+
+    _add_footer(
+        slide,
+        slide_number=slide_number,
+        document_title=artifact.title,
+    )
+
+
 def render_pptx(
     artifact: ArtifactDocument,
     output_path: Path,
@@ -772,6 +932,41 @@ def render_pptx(
 
                 elif isinstance(
                     block,
+                    QuoteBlock,
+                ):
+                    for continuation, text in enumerate(
+                        _split_text(
+                            f"“{block.text}”",
+                            maximum_characters=700,
+                        ),
+                        start=1,
+                    ):
+                        _add_paragraph_slide(
+                            presentation,
+                            artifact,
+                            section.title,
+                            text,
+                            continuation=continuation,
+                            slide_number=slide_number,
+                        )
+                        slide_number += 1
+
+                elif isinstance(
+                    block,
+                    CalloutBlock,
+                ):
+                    _add_paragraph_slide(
+                        presentation,
+                        artifact,
+                        block.title,
+                        block.text,
+                        continuation=1,
+                        slide_number=slide_number,
+                    )
+                    slide_number += 1
+
+                elif isinstance(
+                    block,
                     BulletListBlock,
                 ):
                     for continuation, items in enumerate(
@@ -829,6 +1024,45 @@ def render_pptx(
                         slide_number=slide_number,
                     )
                     slide_number += 1
+
+                elif isinstance(
+                    block,
+                    DiagramBlock,
+                ):
+                    _add_diagram_slide(
+                        presentation,
+                        artifact,
+                        section.title,
+                        block,
+                        slide_number=slide_number,
+                    )
+                    slide_number += 1
+
+                elif isinstance(
+                    block,
+                    EquationBlock,
+                ):
+                    chart_counter += 1
+                    equation_path = (
+                        chart_directory
+                        / f"equation-{chart_counter}.png"
+                    )
+                    _add_equation_slide(
+                        presentation,
+                        artifact,
+                        section.title,
+                        block,
+                        image_path=equation_path,
+                        slide_number=slide_number,
+                    )
+                    slide_number += 1
+
+                elif isinstance(
+                    block,
+                    PageBreakBlock,
+                ):
+                    # Every content block already starts on a new slide.
+                    continue
 
                 elif isinstance(
                     block,

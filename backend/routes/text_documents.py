@@ -20,6 +20,7 @@ from ai.text_document_service import (
 from core.text_document_settings import (
     text_document_settings,
 )
+from artifacts.prompt_compiler import compact_analysis_instruction
 from schemas.text_documents import (
     TextDocumentResponse,
 )
@@ -68,18 +69,10 @@ def _validate_prompt(
             "main points, and cite the relevant sources."
         )
 
-    if (
-        len(normalized)
-        > text_document_settings
-        .maximum_prompt_characters
-    ):
-        raise HTTPException(
-            status_code=(
-                status.HTTP_422_UNPROCESSABLE_ENTITY
-            ),
-            detail=(
-                "Document prompt is too long."
-            ),
+    if len(normalized) > text_document_settings.maximum_prompt_characters:
+        return compact_analysis_instruction(
+            normalized,
+            maximum_characters=text_document_settings.maximum_prompt_characters,
         )
 
     return normalized
