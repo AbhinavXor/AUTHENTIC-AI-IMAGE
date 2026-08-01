@@ -20,6 +20,16 @@ from artifacts.prompt_compiler import (
     compile_composition_prompt,
     estimate_prompt_budget,
 )
+from artifacts.parser import parse_artifact_document
+from artifacts.quality import (
+    normalize_document_structure,
+    normalize_markdown_source,
+    validate_document_quality,
+)
+from artifacts.source_fidelity import (
+    organize_source_losslessly,
+    resolve_source_fidelity,
+)
 from artifacts.source_vault import ArtifactSourceVault
 from schemas.artifact_composer import ArtifactComposeRequest
 from schemas.artifacts import ArtifactSourceReference
@@ -326,6 +336,61 @@ def test_uploaded_pdf_is_stored_as_durable_source_without_prompt(
     stored = vault.get(reference)
     assert stored.snapshot.kind == "uploaded_file"
     assert "AI-Enabled University Operations" in (stored.snapshot.content or "")
+
+
+def test_uploaded_pdf_redesign_keeps_technology_as_prose() -> None:
+    source_pdf = pymupdf.open()
+    page = source_pdf.new_page()
+    page.insert_text(
+        (72, 72),
+        (
+            "Authentic AI Final Build Phases and Change Baseline\n"
+            "Editorial Overview\n"
+            "technology.\n"
+            "The platform uses modern technology for a complete engineering "
+            "implementation plan and faculty-ready professional submission.\n"
+            "Conclusion\n"
+            "The final report preserves the verified source meaning."
+        ),
+    )
+    payload = source_pdf.tobytes()
+    source_pdf.close()
+
+    extracted, metadata_title, _ = (
+        artifact_source_routes.extract_pdf_source(payload)
+    )
+    request = ArtifactComposeRequest(
+        prompt="Create a professional PDF of this uploaded PDF.",
+        format="pdf",
+        title=(
+            metadata_title
+            or "Authentic AI Final Build Phases and Change Baseline"
+        ),
+        source_snapshot={
+            "kind": "uploaded_file",
+            "summary": "Uploaded BTech project source",
+            "content": extracted,
+            "attachment_names": ["source.pdf"],
+        },
+    )
+    profile = resolve_source_fidelity(request, extracted)
+    organized = organize_source_losslessly(
+        profile,
+        fallback_title=request.title or "Professional Document",
+    )
+    artifact = normalize_document_structure(
+        parse_artifact_document(
+            normalize_markdown_source(organized),
+            title=request.title,
+        )
+    )
+    quality = validate_document_quality(
+        artifact,
+        source_snapshot=request.source_snapshot.model_dump(),
+    )
+
+    assert "$$technology.$$" not in organized
+    assert quality.error_count == 0, quality.to_dict()
 
 
 def test_legacy_document_prompt_is_compacted_instead_of_rejected() -> None:

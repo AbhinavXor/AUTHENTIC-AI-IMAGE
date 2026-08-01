@@ -426,6 +426,29 @@ def clean_inline_markdown(value: str) -> str:
     return " ".join(normalized.split())
 
 
+def _invalid_equation_as_prose(expression: str) -> str:
+    """Recover readable prose from a falsely delimited equation block.
+
+    Uploaded PDFs and model responses can occasionally wrap ordinary text in
+    display-math delimiters. The strict equation validator still detects that
+    condition, but the final normalization boundary should preserve the text
+    as prose instead of rejecting the entire document.
+    """
+
+    normalized = expression.strip().strip("$").strip()
+    normalized = _MATH_TEXT_COMMAND.sub(
+        lambda match: match.group(1),
+        normalized,
+    )
+    normalized = re.sub(
+        r"\\(?:quad|qquad)\b",
+        " ",
+        normalized,
+    )
+    normalized = normalized.replace(r"\ ", " ")
+    return clean_inline_markdown(normalized)
+
+
 def _plain_html_text(value: str) -> str:
     without_blocks = _HTML_SCRIPT_STYLE.sub("", value)
     without_tags = re.sub(r"<[^>]+>", " ", without_blocks)
@@ -658,13 +681,14 @@ def _iter_text(document: ArtifactDocument) -> Iterable[str]:
 def normalize_document_structure(
     document: ArtifactDocument,
 ) -> ArtifactDocument:
-    """Clean every user-visible IR field while preserving literal code/math.
+    """Clean every user-visible IR field and repair false math classification.
 
     Parsing is the primary normalization boundary, but artifacts can also be
     reconstructed from stored versions and transformed by layout/revision
-    code.  Applying this final typed pass immediately before validation keeps
+    code. Applying this final typed pass immediately before validation keeps
     create, revise, export, durable-source recovery, and attached-document
-    redesign behavior consistent without corrupting code or equations.
+    redesign behavior consistent. Valid equations remain untouched; prose
+    accidentally wrapped as display math is losslessly demoted to a paragraph.
     """
 
     def optional(value: str | None) -> str | None:
@@ -758,9 +782,20 @@ def normalize_document_structure(
                     )
                 )
             elif isinstance(block, EquationBlock):
-                normalized_blocks.append(
-                    replace(block, label=optional(block.label))
-                )
+                if equation_expression_is_structurally_valid(
+                    block.expression
+                ):
+                    normalized_blocks.append(
+                        replace(block, label=optional(block.label))
+                    )
+                else:
+                    recovered_text = _invalid_equation_as_prose(
+                        block.expression
+                    )
+                    if recovered_text:
+                        normalized_blocks.append(
+                            ParagraphBlock(text=recovered_text)
+                        )
             else:
                 # Literal code and page-break metadata are intentionally not
                 # treated as prose. Their syntax must survive rendering.

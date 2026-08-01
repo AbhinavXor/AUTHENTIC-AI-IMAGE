@@ -27,6 +27,9 @@ def test_equation_classifier_does_not_turn_prose_into_math_banner() -> None:
     assert looks_like_equation("Therefore, x = 9 is correct.") is False
     assert looks_like_equation("The sign reverses whenever an inequality is divided by a negative number.") is False
     assert looks_like_equation("Important logarithm rules are:") is False
+    assert looks_like_equation("technology.") is False
+    assert looks_like_equation("The platform uses modern technology.") is False
+    assert looks_like_equation("The catalog is ready for faculty review.") is False
 
 
 def test_professional_textbook_structure_has_no_internal_leakage() -> None:

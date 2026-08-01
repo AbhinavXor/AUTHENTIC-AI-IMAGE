@@ -7,6 +7,9 @@ from collections import Counter
 from dataclasses import dataclass
 
 from artifacts.source_visuals import derive_supported_chart_blocks
+from artifacts.quality import (
+    equation_expression_is_structurally_valid,
+)
 from core.artifact_settings import artifact_settings
 from schemas.artifact_composer import ArtifactComposeRequest
 
@@ -69,7 +72,8 @@ _COMMAND_TITLE = re.compile(
     re.IGNORECASE,
 )
 _EQUATION_HINT = re.compile(
-    r"(?:=|≤|≥|≠|±|√|∫|lim\b|d/dx|dy/dx|det\(|log[_₂]?|sin\(|cos\(|tan\(|\^[0-9]|[²³⁴⁵])"
+    r"(?:=|≤|≥|≠|±|√|∫|lim\b|d/dx|dy/dx|det\(|"
+    r"\blog(?:[_₂]|\s*\(|\b)|sin\(|cos\(|tan\(|\^[0-9]|[²³⁴⁵])"
 )
 _WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]+")
 _NATURAL_LANGUAGE_WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ÿ]{2,}")
@@ -400,7 +404,13 @@ def _looks_like_equation(line: str) -> bool:
         return False
     if len(prose_words) >= 3 and symbol_count < 3:
         return False
-    return True
+    # Reuse the final structural gate here so PDF extraction and provider
+    # output cannot disagree about what constitutes display mathematics. In
+    # particular, token fragments such as the ``log`` inside "technology"
+    # must remain prose instead of becoming an EquationBlock.
+    return equation_expression_is_structurally_valid(
+        stripped
+    )
 
 
 def looks_like_equation(line: str) -> bool:

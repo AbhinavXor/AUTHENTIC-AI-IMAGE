@@ -8,6 +8,7 @@ from artifacts.models import (
     DiagramBlock,
     EquationBlock,
     PageBreakBlock,
+    ParagraphBlock,
     TableBlock,
 )
 from artifacts.parser import parse_artifact_document
@@ -256,6 +257,44 @@ def test_equation_quality_still_rejects_prose_wrapped_as_display_math() -> None:
 
     for expression in invalid_expressions:
         assert not equation_expression_is_structurally_valid(expression)
+
+
+def test_final_ir_normalization_demotes_false_equations_without_losing_text() -> None:
+    document = parse_artifact_document(
+        """# Uploaded Project Report
+
+## Editorial Overview
+
+$$technology.$$
+
+The uploaded project explains a complete engineering implementation plan for
+faculty review and professional submission.
+
+## Quantitative Analysis
+
+$$E = P \\times t$$
+
+## Conclusion
+
+The final report preserves the source and its verified technical meaning.
+"""
+    )
+
+    repaired = normalize_document_structure(document)
+    editorial_blocks = repaired.sections[0].blocks
+    equation_blocks = [
+        block
+        for section in repaired.sections
+        for block in section.blocks
+        if isinstance(block, EquationBlock)
+    ]
+
+    assert isinstance(editorial_blocks[0], ParagraphBlock)
+    assert editorial_blocks[0].text == "technology."
+    assert [block.expression for block in equation_blocks] == [
+        r"E = P \times t"
+    ]
+    assert validate_document_quality(repaired).error_count == 0
 
 
 def test_inline_greek_symbols_are_professional_in_headings_and_toc() -> None:
