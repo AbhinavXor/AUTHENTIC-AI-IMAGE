@@ -1374,16 +1374,22 @@ def render_pdf(artifact: ArtifactDocument, output_path: Path) -> Path:
         table_number = 0
 
         for section_index, section in enumerate(artifact.sections):
-            story.extend(
-                _section_heading_flowables(
-                    section,
-                    index=section_index,
-                    brief=artifact.layout_brief,
-                    styles=styles,
-                )
-            )
-
             blocks = list(section.blocks)
+            first_block_is_wide_table = bool(
+                blocks
+                and isinstance(blocks[0], TableBlock)
+                and artifact.layout_brief.use_landscape_for_wide_tables
+                and _is_wide_table(blocks[0])
+            )
+            if not first_block_is_wide_table:
+                story.extend(
+                    _section_heading_flowables(
+                        section,
+                        index=section_index,
+                        brief=artifact.layout_brief,
+                        styles=styles,
+                    )
+                )
             block_index = 0
             while block_index < len(blocks):
                 block = blocks[block_index]
@@ -1434,6 +1440,19 @@ def render_pdf(artifact: ArtifactDocument, output_path: Path) -> Path:
                             [
                                 NextPageTemplate("landscape"),
                                 PageBreak(),
+                            ]
+                        )
+                        if block_index == 0 and first_block_is_wide_table:
+                            story.extend(
+                                _section_heading_flowables(
+                                    section,
+                                    index=section_index,
+                                    brief=artifact.layout_brief,
+                                    styles=styles,
+                                )
+                            )
+                        story.extend(
+                            [
                                 Paragraph(f"TABLE {table_number}", styles["figure_label"]),
                                 _table(
                                     block,

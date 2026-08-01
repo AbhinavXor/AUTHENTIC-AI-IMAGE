@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-import pymupdf
 from fastapi import (
     APIRouter,
     File,
@@ -14,9 +12,12 @@ from fastapi import (
     status,
 )
 
+from artifacts.pdf_source_extractor import (
+    extract_structured_pdf_source,
+    filename_fallback_title,
+)
 from artifacts.source_vault import ArtifactSourceVault
 from core.artifact_settings import artifact_settings
-from core.document_settings import document_settings
 from schemas.artifact_sources import (
     ArtifactSourceCreateResponse,
     ArtifactTextSourceCreateRequest,
@@ -38,53 +39,16 @@ def get_artifact_source_vault() -> ArtifactSourceVault:
     )
 
 
-def _normalize_pdf_text(value: str) -> str:
-    lines = [
-        re.sub(r"[ \t]+", " ", line).strip()
-        for line in value.replace("\r", "\n").splitlines()
-    ]
-    output: list[str] = []
-    previous_blank = False
-    for line in lines:
-        if not line:
-            if output and not previous_blank:
-                output.append("")
-            previous_blank = True
-            continue
-        output.append(line)
-        previous_blank = False
-    return "\n".join(output).strip()
-
-
 def extract_pdf_source(
     pdf_bytes: bytes,
+    *,
+    fallback_title: str | None = None,
 ) -> tuple[str, str | None, int]:
-    try:
-        document = pymupdf.open(
-            stream=pdf_bytes,
-            filetype="pdf",
-        )
-    except Exception as error:
-        raise ValueError(
-            "The uploaded file is not a readable PDF."
-        ) from error
-
-    try:
-        if document.needs_pass or document.is_encrypted:
-            raise ValueError(
-                "Password-protected PDFs cannot be used as artifact sources."
-            )
-        pages: list[str] = []
-        for page_index in range(document.page_count):
-            page = document.load_page(page_index)
-            text = _normalize_pdf_text(page.get_text("text"))
-            if text:
-                pages.append(text)
-        metadata = document.metadata if isinstance(document.metadata, dict) else {}
-        title = str(metadata.get("title") or "").strip() or None
-        return "\n\n".join(pages).strip(), title, int(document.page_count)
-    finally:
-        document.close()
+    content, title, page_count = extract_structured_pdf_source(
+        pdf_bytes,
+        fallback_title=fallback_title,
+    )
+    return content, title, page_count
 
 
 def _response(
@@ -137,7 +101,7 @@ async def create_uploaded_artifact_source(
             detail="Only PDF uploads are supported by the durable artifact-source endpoint.",
         )
     try:
-        pdf_bytes = await file.read(document_settings.maximum_pdf_bytes + 1)
+        pdf_bytes = await file.read(artifact_settings.maximum_request_bytes + 1)
     finally:
         await file.close()
     if not pdf_bytes:
@@ -145,7 +109,7 @@ async def create_uploaded_artifact_source(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Uploaded PDF is empty.",
         )
-    if len(pdf_bytes) > document_settings.maximum_pdf_bytes:
+    if len(pdf_bytes) > artifact_settings.maximum_request_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Uploaded PDF exceeds the configured byte-size safety limit.",
@@ -156,7 +120,10 @@ async def create_uploaded_artifact_source(
             detail="The uploaded file content is not a PDF.",
         )
     try:
-        content, metadata_title, page_count = extract_pdf_source(pdf_bytes)
+        content, metadata_title, page_count = extract_pdf_source(
+            pdf_bytes,
+            fallback_title=filename_fallback_title(filename),
+        )
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -170,7 +137,7 @@ async def create_uploaded_artifact_source(
                 "before requesting a lossless redesign."
             ),
         )
-    if len(content) > artifact_settings.maximum_prompt_characters:
+    if len(content) > artifact_settings.maximum_source_characters:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="The extracted source exceeds the configured source-storage limit.",

@@ -9,12 +9,22 @@ from fastapi.testclient import TestClient
 
 import routes.artifact_sources as artifact_source_routes
 from ai.provider_adapter import ProviderError
+from artifacts import pdf_source_extractor
 from artifacts.architecture_registry import architecture_registry
 from artifacts.composer import (
     ArtifactCompositionError,
     compose_artifact_draft,
     compose_artifact_revision,
 )
+from artifacts.document_profiles import resolve_document_profile
+from artifacts.large_source import plan_large_source
+from artifacts.models import (
+    ArtifactDocument,
+    ArtifactLayoutBrief,
+    ArtifactSection,
+    TableBlock,
+)
+from artifacts.pdf_renderer import render_pdf
 from artifacts.prompt_compiler import (
     compact_analysis_instruction,
     compile_composition_prompt,
@@ -27,6 +37,7 @@ from artifacts.quality import (
     validate_document_quality,
 )
 from artifacts.source_fidelity import (
+    is_canonical_artifact_markdown,
     organize_source_losslessly,
     resolve_source_fidelity,
 )
@@ -336,6 +347,282 @@ def test_uploaded_pdf_is_stored_as_durable_source_without_prompt(
     stored = vault.get(reference)
     assert stored.snapshot.kind == "uploaded_file"
     assert "AI-Enabled University Operations" in (stored.snapshot.content or "")
+
+
+def _semantic_source_pdf() -> bytes:
+    document = pymupdf.open()
+    document.set_metadata({"title": "Semantic Systems Engineering Report"})
+
+    cover = document.new_page(width=595, height=842)
+    cover.insert_text((60, 75), "Executive Summary", fontsize=20)
+    cover.insert_text(
+        (60, 108),
+        "This report preserves document hierarchy and structured evidence.",
+        fontsize=9.2,
+    )
+    x_positions = (60, 245, 520)
+    y_positions = (150, 180, 210, 240)
+    for x in x_positions:
+        cover.draw_line((x, y_positions[0]), (x, y_positions[-1]))
+    for y in y_positions:
+        cover.draw_line((x_positions[0], y), (x_positions[-1], y))
+    cells = (
+        ("Metric", "Verified Value"),
+        ("Accuracy", "96%"),
+        ("Latency", "2.4 seconds"),
+    )
+    for row_index, row in enumerate(cells):
+        for column_index, value in enumerate(row):
+            cover.insert_text(
+                (x_positions[column_index] + 6, y_positions[row_index] + 20),
+                value,
+                fontsize=8.5,
+            )
+
+    contents = document.new_page(width=595, height=842)
+    contents.insert_text((45, 22), "SEMANTIC SYSTEMS REPORT", fontsize=7.2)
+    contents.insert_text((60, 75), "Table of Contents", fontsize=18)
+    for index, value in enumerate(
+        (
+            "Executive Summary 1",
+            "Results and Recommendations 3",
+            "Appendix 4",
+        )
+    ):
+        contents.insert_text((65, 115 + index * 24), value, fontsize=9.2)
+    contents.insert_text((60, 818), "Internal Baseline | Page 2", fontsize=7.2)
+
+    results = document.new_page(width=595, height=842)
+    results.insert_text((45, 22), "SEMANTIC SYSTEMS REPORT", fontsize=7.2)
+    results.insert_text((60, 75), "Results and Recommendations", fontsize=20)
+    results.insert_text(
+        (60, 108),
+        "The measured result remains source-supported and professionally structured.",
+        fontsize=9.2,
+    )
+    results.insert_text((60, 145), "Implementation controls", fontsize=12)
+    results.insert_text(
+        (60, 170),
+        "Use staged verification, clear ownership, and auditable quality gates.",
+        fontsize=9.2,
+    )
+    results.insert_text(
+        (60, 205),
+        "2. ILO — Sectoral employment statistics",
+        fontsize=7.8,
+    )
+    results.insert_text((60, 818), "Internal Baseline | Page 3", fontsize=7.2)
+
+    payload = document.tobytes()
+    document.close()
+    return payload
+
+
+def test_uploaded_pdf_extraction_preserves_hierarchy_tables_and_clean_margins() -> None:
+    extracted, title, page_count = artifact_source_routes.extract_pdf_source(
+        _semantic_source_pdf(),
+        fallback_title="Fallback Source",
+    )
+
+    assert title == "Semantic Systems Engineering Report"
+    assert page_count == 3
+    assert extracted.startswith("# Semantic Systems Engineering Report")
+    assert "## Executive Summary" in extracted
+    assert "## Results and Recommendations" in extracted
+    assert "| Metric | Verified Value |" in extracted
+    assert "| Accuracy | 96% |" in extracted
+    assert "2. ILO" in extracted
+    assert "Sectoral employment statistics" in extracted
+    assert "## 2. ILO" not in extracted
+    assert "Table of Contents" not in extracted
+    assert "SEMANTIC SYSTEMS REPORT" not in extracted
+    assert "Internal Baseline | Page" not in extracted
+
+
+def _large_mixed_page_source_pdf(page_count: int = 96) -> bytes:
+    document = pymupdf.open()
+    document.set_metadata({"title": "Scalable Engineering Reference"})
+
+    page_sizes = (
+        (595, 842),
+        (842, 595),
+        (720, 720),
+        (612, 792),
+    )
+    for page_index in range(page_count):
+        width, height = page_sizes[page_index % len(page_sizes)]
+        page = document.new_page(width=width, height=height)
+        if page_index == 0:
+            page.insert_text(
+                (54, 86),
+                "Scalable Engineering Reference",
+                fontsize=24,
+                fontname="hebo",
+            )
+        else:
+            page.insert_text(
+                (36, 20),
+                "SCALABLE ENGINEERING REFERENCE",
+                fontsize=7,
+            )
+            page.insert_text(
+                (54, 78),
+                f"Chapter {page_index}",
+                fontsize=18,
+                fontname="hebo",
+            )
+        page.insert_text(
+            (54, 118),
+            (
+                "This page preserves its source hierarchy while arbitrary page "
+                "dimensions and long document sequences are processed safely."
+            ),
+            fontsize=10,
+        )
+        page.insert_text(
+            (54, height - 18),
+            f"Engineering Reference | Page {page_index + 1}",
+            fontsize=7,
+        )
+
+    payload = document.tobytes()
+    document.close()
+    return payload
+
+
+def test_typography_sampling_is_bounded_and_spans_the_document() -> None:
+    indexes = pdf_source_extractor._sample_page_indexes(10_000)
+
+    assert len(indexes) <= pdf_source_extractor.MAX_TYPOGRAPHY_SAMPLE_PAGES
+    assert indexes[0] == 1
+    assert indexes[-1] == 9_999
+    assert indexes == tuple(sorted(set(indexes)))
+
+
+def test_large_mixed_page_pdf_is_processed_without_a_page_count_cap() -> None:
+    extracted, title, page_count = artifact_source_routes.extract_pdf_source(
+        _large_mixed_page_source_pdf(),
+    )
+
+    assert title == "Scalable Engineering Reference"
+    assert page_count == 96
+    assert "## Chapter 1" in extracted
+    assert "## Chapter 95" in extracted
+    assert "<!--AUTHENTIC_SOURCE_PAGE:0096-->" in extracted
+    assert "SCALABLE ENGINEERING REFERENCE" not in extracted
+    assert "Engineering Reference / Page" not in extracted
+    assert "Engineering Reference | Page" not in extracted
+
+
+def test_large_durable_source_reaches_multi_volume_planning() -> None:
+    from core.artifact_settings import artifact_settings
+
+    source_size = artifact_settings.pdf_bundle_source_characters + 1
+    assert artifact_settings.maximum_source_characters > source_size
+    request = ArtifactComposeRequest(
+        prompt="Create a professional PDF from the durable source.",
+        format="pdf",
+        source_snapshot={
+            "kind": "uploaded_file",
+            "summary": "Long source",
+            "content": "x" * source_size,
+        },
+    )
+
+    plan = plan_large_source(request)
+
+    assert plan.source_character_count == source_size
+    assert plan.bundle_volume_count == 2
+
+
+def test_structured_uploaded_pdf_bypasses_flat_editorial_overview() -> None:
+    extracted, title, _ = artifact_source_routes.extract_pdf_source(
+        _semantic_source_pdf(),
+    )
+    request = ArtifactComposeRequest(
+        prompt="Create a professional PDF of this uploaded PDF.",
+        format="pdf",
+        title=title,
+        source_snapshot={
+            "kind": "uploaded_file",
+            "summary": "Semantic engineering source",
+            "content": extracted,
+            "attachment_names": ["semantic-source.pdf"],
+        },
+    )
+    profile = resolve_source_fidelity(request, extracted)
+    organized = organize_source_losslessly(
+        profile,
+        fallback_title=title or "Professional Document",
+    )
+    artifact = normalize_document_structure(
+        parse_artifact_document(
+            normalize_markdown_source(organized),
+            title=title,
+        )
+    )
+
+    assert is_canonical_artifact_markdown(extracted) is True
+    assert "## Editorial Overview" not in organized
+    assert len(artifact.sections) >= 2
+    assert any(
+        isinstance(block, TableBlock)
+        for section in artifact.sections
+        for block in section.blocks
+    )
+
+
+def test_generic_professional_request_for_uploaded_pdf_uses_redesign_profile() -> None:
+    request = request_with_separate_source(
+        prompt="Create a professional PDF of this PDF.",
+    )
+    assert resolve_document_profile(request).profile_id == "redesign_existing"
+
+
+def test_wide_table_stays_with_its_section_heading(
+    tmp_path: Path,
+) -> None:
+    artifact = ArtifactDocument(
+        title="Wide Table Layout Test",
+        subtitle=None,
+        author=None,
+        sections=(
+            ArtifactSection(
+                title="Wide Results",
+                level=1,
+                blocks=(
+                    TableBlock(
+                        columns=("A", "B", "C", "D", "E", "F"),
+                        rows=tuple(
+                            tuple(f"Value {row}-{column}" for column in range(6))
+                            for row in range(10)
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        layout_brief=ArtifactLayoutBrief(
+            family="data_report",
+            include_table_of_contents=False,
+            include_section_openers=False,
+            use_landscape_for_wide_tables=True,
+            footer_mode="none",
+        ),
+    )
+    output = tmp_path / "wide-table.pdf"
+    render_pdf(artifact, output)
+    rendered = pymupdf.open(output)
+    try:
+        matching_pages = [
+            page.get_text("text")
+            for page in rendered
+            if "Wide Results" in page.get_text("text")
+        ]
+    finally:
+        rendered.close()
+
+    assert len(matching_pages) == 1
+    assert "TABLE 1" in matching_pages[0]
 
 
 def test_uploaded_pdf_redesign_keeps_technology_as_prose() -> None:

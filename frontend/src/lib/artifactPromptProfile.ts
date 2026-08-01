@@ -34,7 +34,7 @@ export function selectArtifactProfile(
   const normalized = prompt.toLocaleLowerCase()
   if (
     sourceKind === 'uploaded_file'
-    && /\b(?:redesign|rebuild|restyle|new\s+design|change\s+(?:the\s+)?layout)\b/i
+    && /\b(?:redesign|rebuild|restyle|reformat|new\s+design|change\s+(?:the\s+)?layout|(?:create|make|generate|prepare|produce|bana\s*do|banao)\b[\s\S]{0,120}\b(?:professional|polished|final[- ]ready|best\s+design)?[\s\S]{0,80}\b(?:pdf|document|file)\b|\b(?:professional|polished|final[- ]ready|best\s+design)\b[\s\S]{0,100}\b(?:pdf|document|file)\b)\b/i
       .test(normalized)
   ) {
     return 'redesign_existing'

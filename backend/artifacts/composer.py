@@ -510,10 +510,7 @@ def _deterministic_large_source_document(
             "The complete source is not available in this chat preview. Re-paste or upload the original source, or use an existing artifact card so Serenya can securely recover its stored source."
         )
 
-    recovered_canonical = bool(
-        recovered_payload
-        and is_canonical_artifact_markdown(source_text)
-    )
+    recovered_canonical = is_canonical_artifact_markdown(source_text)
 
     if recovered_canonical:
         content = normalize_recovered_artifact_markdown(

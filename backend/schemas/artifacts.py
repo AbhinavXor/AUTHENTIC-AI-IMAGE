@@ -119,7 +119,7 @@ class ArtifactSourceSnapshot(BaseModel):
         default=None,
         max_length=(
             artifact_settings
-            .maximum_prompt_characters
+            .maximum_source_characters
         ),
     )
     message_ids: list[str] = Field(
@@ -299,7 +299,7 @@ class ArtifactSourceResponse(BaseModel):
         min_length=1,
         max_length=(
             artifact_settings
-            .maximum_prompt_characters
+            .maximum_source_characters
         ),
     )
     message_ids: list[str] = Field(

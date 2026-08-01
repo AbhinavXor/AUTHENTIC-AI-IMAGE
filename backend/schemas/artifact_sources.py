@@ -19,7 +19,7 @@ class ArtifactTextSourceCreateRequest(BaseModel):
 
     content: str = Field(
         min_length=1,
-        max_length=artifact_settings.maximum_prompt_characters,
+        max_length=artifact_settings.maximum_source_characters,
     )
     summary: str = Field(min_length=1, max_length=2_000)
     kind: ArtifactSourceKind = "explicit_prompt"
@@ -36,4 +36,3 @@ class ArtifactSourceCreateResponse(BaseModel):
     source_characters: int = Field(ge=1)
     created_at: datetime
     expires_at: datetime
-

@@ -98,6 +98,19 @@ class ArtifactSettings:
             )
         )
 
+        # Durable sources use a separate budget so page-rich uploads are not
+        # forced into the much smaller instruction/provider prompt channel.
+        # Sources beyond the single-document threshold are handled by the
+        # existing multi-volume PDF planner instead of being rejected early.
+        self.maximum_source_characters = (
+            _positive_int(
+                "ARTIFACT_MAXIMUM_SOURCE_CHARACTERS",
+                16_000_000,
+                minimum=50_000,
+                maximum=64_000_000,
+            )
+        )
+
         # Provider prompts are deliberately much smaller than accepted
         # source payloads. Large sources live in the source vault and are
         # streamed through bounded composition passes instead of being
@@ -159,9 +172,9 @@ class ArtifactSettings:
         self.maximum_content_characters = (
             _positive_int(
                 "ARTIFACT_MAXIMUM_CONTENT_CHARACTERS",
-                4_000_000,
+                16_000_000,
                 minimum=1_000,
-                maximum=8_000_000,
+                maximum=64_000_000,
             )
         )
 

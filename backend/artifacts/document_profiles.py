@@ -118,7 +118,13 @@ def resolve_document_profile(
         "uploaded_file",
         "artifact_version",
     } and re.search(
-        r"\b(?:redesign|rebuild|restyle|new\s+design|change\s+(?:the\s+)?layout|design\s+revision)\b",
+        r"\b(?:redesign|rebuild|restyle|reformat|new\s+design|"
+        r"change\s+(?:the\s+)?layout|design\s+revision|"
+        r"(?:create|make|generate|prepare|produce|bana\s*do|banao)\b"
+        r"[\s\S]{0,120}\b(?:professional|polished|final[- ]ready|best\s+design)?"
+        r"[\s\S]{0,80}\b(?:pdf|document|file)\b|"
+        r"\b(?:professional|polished|final[- ]ready|best\s+design)\b"
+        r"[\s\S]{0,100}\b(?:pdf|document|file)\b)",
         text,
     ):
         return _PROFILES["redesign_existing"]

@@ -167,6 +167,24 @@ test('packages an attached PDF redesign as a compact profile request', () => {
 })
 
 
+test('treats a generic professional request for an uploaded PDF as redesign', () => {
+  assert.equal(
+    selectArtifactProfile(
+      'Create a professional PDF of this PDF.',
+      'uploaded_file',
+    ),
+    'redesign_existing',
+  )
+  assert.equal(
+    selectArtifactProfile(
+      'Is uploaded file ko polished final-ready document banao.',
+      'uploaded_file',
+    ),
+    'redesign_existing',
+  )
+})
+
+
 test('sends distinct presentation tiers for normal and premium PDF requests', () => {
   assert.equal(
     detectArtifactPresentationTier('Is content ka PDF bana do.'),

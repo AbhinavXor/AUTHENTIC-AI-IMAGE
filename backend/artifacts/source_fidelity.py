@@ -806,6 +806,15 @@ def is_canonical_artifact_markdown(source_text: str) -> bool:
     if len(h1) != 1 or len(sections) < 2:
         return False
 
+    generic_structure = bool(
+        len(sections) >= 3
+        or len(re.findall(r"(?m)^###\s+\S", normalized)) >= 2
+        or re.search(
+            r"(?m)^\|\s*[^\n|]+(?:\|[^\n|]+)+\|\s*$\n"
+            r"^\|(?:\s*:?-{3,}:?\s*\|){2,}\s*$",
+            normalized,
+        )
+    )
     structural_signals = sum(
         bool(re.search(pattern, normalized, re.IGNORECASE | re.MULTILINE))
         for pattern in (
@@ -815,7 +824,7 @@ def is_canonical_artifact_markdown(source_text: str) -> bool:
             r"\[page-break\]",
         )
     )
-    return structural_signals >= 1
+    return structural_signals >= 1 or generic_structure
 
 
 def _remove_markdown_section(markdown: str, section_title: str) -> str:
@@ -916,6 +925,12 @@ def organize_source_losslessly(
     include_derived_visualizations: bool = True,
 ) -> str:
     """Create a professional textbook-like Markdown document without source loss."""
+
+    if is_canonical_artifact_markdown(profile.source_body):
+        return normalize_recovered_artifact_markdown(
+            profile.source_body,
+            fallback_title=fallback_title,
+        )
 
     title = infer_professional_title(profile.source_body, fallback_title)
     preamble, chapters = _split_chapters(profile.source_body)
